@@ -21,18 +21,6 @@ export const auth = {
     return { data, error };
   },
 
-  async signInWithGithub() {
-    if (!supabase) return { error: new Error('Supabase not configured') };
-    
-    const { data, error } = await supabase.auth.signInWithOAuth({
-      provider: 'github',
-      options: {
-        redirectTo: window.location.origin
-      }
-    });
-    return { data, error };
-  },
-
   async signOut() {
     if (!supabase) return { error: null };
     return await supabase.auth.signOut();
@@ -57,106 +45,87 @@ export const auth = {
 // Database helpers
 export const db = {
   // Time Blocks
-  async getTimeBlocks(userId, startDate, endDate = null) {
+  async getTimeBlocks(userId, startDate, endDate) {
     if (!supabase || !userId) return { data: [], error: null };
     
     let query = supabase
       .from('time_blocks')
       .select('*')
       .eq('user_id', userId)
-      .order('date', { ascending: true })
       .order('hour', { ascending: true });
     
-    if (endDate) {
+    if (startDate && endDate) {
       query = query.gte('date', startDate).lte('date', endDate);
-    } else {
+    } else if (startDate) {
       query = query.eq('date', startDate);
     }
     
-    const { data, error } = await query;
-    return { data: data || [], error };
+    return await query;
   },
 
   async createTimeBlock(userId, block) {
-    if (!supabase || !userId) return { data: null, error: null };
+    if (!supabase || !userId) return { data: null, error: new Error('Not authenticated') };
     
-    const { data, error } = await supabase
+    return await supabase
       .from('time_blocks')
-      .insert([{
-        ...block,
-        user_id: userId,
-        date: block.date || new Date().toISOString().split('T')[0]
-      }])
+      .insert({ ...block, user_id: userId })
       .select()
       .single();
-    
-    return { data, error };
   },
 
   async updateTimeBlock(userId, id, updates) {
-    if (!supabase || !userId) return { data: null, error: null };
+    if (!supabase || !userId) return { data: null, error: new Error('Not authenticated') };
     
-    const { data, error } = await supabase
+    return await supabase
       .from('time_blocks')
-      .update(updates)
+      .update({ ...updates, updated_at: new Date().toISOString() })
       .eq('id', id)
       .eq('user_id', userId)
       .select()
       .single();
-    
-    return { data, error };
   },
 
   async deleteTimeBlock(userId, id) {
     if (!supabase || !userId) return { error: null };
     
-    const { error } = await supabase
+    return await supabase
       .from('time_blocks')
       .delete()
       .eq('id', id)
       .eq('user_id', userId);
-    
-    return { error };
   },
 
   // Recurring Tasks
-  async createRecurringTask(userId, block) {
-    if (!supabase || !userId) return { data: null, error: null };
+  async createRecurringTask(userId, task) {
+    if (!supabase || !userId) return { data: null, error: new Error('Not authenticated') };
     
-    const { data, error } = await supabase
+    return await supabase
       .from('time_blocks')
-      .insert([{
-        ...block,
+      .insert({
+        ...task,
         user_id: userId,
-        is_recurring: true,
-        date: block.date || new Date().toISOString().split('T')[0]
-      }])
+        is_recurring: true
+      })
       .select()
       .single();
-    
-    return { data, error };
   },
 
   async getRecurringTasks(userId) {
     if (!supabase || !userId) return { data: [], error: null };
     
-    const { data, error } = await supabase
+    return await supabase
       .from('time_blocks')
       .select('*')
       .eq('user_id', userId)
       .eq('is_recurring', true)
-      .is('parent_task_id', null)
-      .order('hour', { ascending: true });
-    
-    return { data: data || [], error };
+      .is('parent_task_id', null);
   },
 
-  // Pomodoro Stats
+  // Stats
   async getTodayStats(userId) {
     if (!supabase || !userId) return { data: null, error: null };
     
     const today = new Date().toISOString().split('T')[0];
-    
     const { data, error } = await supabase
       .from('pomodoro_stats')
       .select('*')
@@ -164,25 +133,26 @@ export const db = {
       .eq('date', today)
       .single();
     
+    if (error && error.code === 'PGRST116') {
+      return { data: { pomodoros_completed: 0, focus_minutes: 0 }, error: null };
+    }
     return { data, error };
   },
 
   async getStatsRange(userId, startDate, endDate) {
     if (!supabase || !userId) return { data: [], error: null };
     
-    const { data, error } = await supabase
+    return await supabase
       .from('pomodoro_stats')
       .select('*')
       .eq('user_id', userId)
       .gte('date', startDate)
       .lte('date', endDate)
       .order('date', { ascending: true });
-    
-    return { data: data || [], error };
   },
 
-  async updatePomodoroStats(userId, completed = 1, category = null) {
-    if (!supabase || !userId) return { data: null, error: null };
+  async updatePomodoroStats(userId, category = 'work') {
+    if (!supabase || !userId) return { error: null };
     
     const today = new Date().toISOString().split('T')[0];
     
@@ -194,43 +164,33 @@ export const db = {
       .single();
     
     if (existing) {
-      const newBreakdown = { ...existing.categories_breakdown };
-      if (category) {
-        newBreakdown[category] = (newBreakdown[category] || 0) + completed;
-      }
+      const breakdown = existing.categories_breakdown || {};
+      breakdown[category] = (breakdown[category] || 0) + 1;
       
-      const { data, error } = await supabase
+      return await supabase
         .from('pomodoro_stats')
-        .update({ 
-          pomodoros_completed: existing.pomodoros_completed + completed,
-          focus_minutes: existing.focus_minutes + (completed * 25),
-          categories_breakdown: newBreakdown
+        .update({
+          pomodoros_completed: existing.pomodoros_completed + 1,
+          focus_minutes: existing.focus_minutes + 25,
+          categories_breakdown: breakdown,
+          updated_at: new Date().toISOString()
         })
-        .eq('id', existing.id)
-        .select()
-        .single();
-      
-      return { data, error };
+        .eq('id', existing.id);
     } else {
-      const categoriesBreakdown = category ? { [category]: completed } : {};
-      
-      const { data, error } = await supabase
+      const breakdown = { [category]: 1 };
+      return await supabase
         .from('pomodoro_stats')
-        .insert([{
+        .insert({
           user_id: userId,
           date: today,
-          pomodoros_completed: completed,
-          focus_minutes: completed * 25,
-          categories_breakdown: categoriesBreakdown
-        }])
-        .select()
-        .single();
-      
-      return { data, error };
+          pomodoros_completed: 1,
+          focus_minutes: 25,
+          categories_breakdown: breakdown
+        });
     }
   },
 
-  // User Preferences
+  // Preferences
   async getPreferences(userId) {
     if (!supabase || !userId) return { data: null, error: null };
     
@@ -240,25 +200,27 @@ export const db = {
       .eq('user_id', userId)
       .single();
     
+    if (error && error.code === 'PGRST116') {
+      return { data: null, error: null };
+    }
     return { data, error };
   },
 
   async upsertPreferences(userId, preferences) {
-    if (!supabase || !userId) return { data: null, error: null };
+    if (!supabase || !userId) return { error: null };
     
-    const { data, error } = await supabase
+    return await supabase
       .from('user_preferences')
       .upsert({
         user_id: userId,
-        ...preferences
-      }, { onConflict: 'user_id' })
-      .select()
-      .single();
-    
-    return { data, error };
+        ...preferences,
+        updated_at: new Date().toISOString()
+      }, {
+        onConflict: 'user_id'
+      });
   },
 
-  // Analytics
+  // Weekly Analytics
   async getWeeklyAnalytics(userId, weekStart) {
     if (!supabase || !userId) return { data: null, error: null };
     
@@ -269,22 +231,21 @@ export const db = {
       .eq('week_start', weekStart)
       .single();
     
+    if (error && error.code === 'PGRST116') {
+      return { data: null, error: null };
+    }
     return { data, error };
   },
 
   async getAnalyticsRange(userId, startDate, endDate) {
     if (!supabase || !userId) return { data: [], error: null };
     
-    const { data, error } = await supabase
+    return await supabase
       .from('weekly_analytics')
       .select('*')
       .eq('user_id', userId)
       .gte('week_start', startDate)
       .lte('week_start', endDate)
       .order('week_start', { ascending: true });
-    
-    return { data: data || [], error };
   }
 };
-
-export default supabase;
