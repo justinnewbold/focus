@@ -1,4 +1,18 @@
 import React, { useState, useEffect, useCallback, useRef } from 'react';
+import { supabase, db } from './supabase';
+
+// Notification helper
+const notify = (title, body) => {
+  if ('Notification' in window && Notification.permission === 'granted') {
+    new Notification(title, { body, icon: '🍅' });
+  }
+};
+
+const requestNotificationPermission = async () => {
+  if ('Notification' in window && Notification.permission === 'default') {
+    await Notification.requestPermission();
+  }
+};
 
 // Sound effect using Web Audio API
 const useSound = () => {
@@ -50,7 +64,7 @@ const formatHour = (hour) => {
 
 // Pomodoro Timer Component
 const PomodoroTimer = ({ onComplete, currentTask }) => {
-  const [mode, setMode] = useState('work'); // work, shortBreak, longBreak
+  const [mode, setMode] = useState('work');
   const [timeLeft, setTimeLeft] = useState(25 * 60);
   const [isRunning, setIsRunning] = useState(false);
   const [pomodorosCompleted, setPomodorosCompleted] = useState(0);
@@ -75,6 +89,10 @@ const PomodoroTimer = ({ onComplete, currentTask }) => {
   };
 
   useEffect(() => {
+    requestNotificationPermission();
+  }, []);
+
+  useEffect(() => {
     let interval;
     if (isRunning && timeLeft > 0) {
       interval = setInterval(() => {
@@ -86,6 +104,7 @@ const PomodoroTimer = ({ onComplete, currentTask }) => {
         const newCount = pomodorosCompleted + 1;
         setPomodorosCompleted(newCount);
         onComplete && onComplete();
+        notify('🍅 Pomodoro Complete!', `Great work! Time for a ${newCount % 4 === 0 ? 'long' : 'short'} break.`);
         if (newCount % 4 === 0) {
           setMode('longBreak');
           setTimeLeft(durations.longBreak);
@@ -94,6 +113,7 @@ const PomodoroTimer = ({ onComplete, currentTask }) => {
           setTimeLeft(durations.shortBreak);
         }
       } else {
+        notify('⏰ Break Over!', 'Ready to focus again?');
         setMode('work');
         setTimeLeft(durations.work);
       }
@@ -381,13 +401,13 @@ const TimeBlock = ({ block, onUpdate, onDelete, isActive }) => {
             }}>
               {block.category}
             </span>
-            {block.pomodoroCount > 0 && (
+            {block.pomodoro_count > 0 && (
               <span style={{
                 fontFamily: "'JetBrains Mono', monospace",
                 fontSize: '12px',
                 color: isActive ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.4)'
               }}>
-                🍅 ×{block.pomodoroCount}
+                🍅 ×{block.pomodoro_count}
               </span>
             )}
           </div>
@@ -460,12 +480,11 @@ const AddBlockModal = ({ hour, onAdd, onClose }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     onAdd({
-      id: Date.now(),
       hour,
       title,
       category,
       duration,
-      pomodoroCount: 0,
+      pomodoro_count: 0,
       completed: false
     });
     onClose();
@@ -642,7 +661,7 @@ const AddBlockModal = ({ hour, onAdd, onClose }) => {
 };
 
 // Statistics Panel
-const StatsPanel = ({ blocks, pomodorosToday }) => {
+const StatsPanel = ({ blocks, pomodorosToday, isLoading }) => {
   const totalHoursPlanned = blocks.reduce((acc, b) => acc + (b.duration || 1), 0);
   const completedBlocks = blocks.filter(b => b.completed).length;
   const focusTime = pomodorosToday * 25;
@@ -669,7 +688,9 @@ const StatsPanel = ({ blocks, pomodorosToday }) => {
             borderRadius: '16px',
             padding: '20px',
             textAlign: 'center',
-            border: '1px solid rgba(255,255,255,0.06)'
+            border: '1px solid rgba(255,255,255,0.06)',
+            opacity: isLoading ? 0.5 : 1,
+            transition: 'opacity 0.3s ease'
           }}
         >
           <div style={{ fontSize: '24px', marginBottom: '8px' }}>{stat.icon}</div>
@@ -697,19 +718,109 @@ const StatsPanel = ({ blocks, pomodorosToday }) => {
   );
 };
 
+// Connection Status Indicator
+const ConnectionStatus = ({ isConnected, isSyncing }) => (
+  <div style={{
+    position: 'fixed',
+    bottom: '20px',
+    right: '20px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    background: 'rgba(0,0,0,0.6)',
+    padding: '10px 16px',
+    borderRadius: '20px',
+    backdropFilter: 'blur(10px)',
+    border: '1px solid rgba(255,255,255,0.1)'
+  }}>
+    <div style={{
+      width: '8px',
+      height: '8px',
+      borderRadius: '50%',
+      background: isConnected ? '#4ECDC4' : '#FF6B6B',
+      boxShadow: isConnected ? '0 0 10px #4ECDC4' : '0 0 10px #FF6B6B',
+      animation: isSyncing ? 'pulse 1s infinite' : 'none'
+    }} />
+    <span style={{
+      fontFamily: "'JetBrains Mono', monospace",
+      fontSize: '11px',
+      color: 'rgba(255,255,255,0.6)'
+    }}>
+      {isSyncing ? 'Syncing...' : isConnected ? 'Connected' : 'Offline Mode'}
+    </span>
+  </div>
+);
+
 // Main App
 export default function App() {
-  const [blocks, setBlocks] = useState([
-    { id: 1, hour: 9, title: 'Deep Work Session', category: 'work', duration: 2, pomodoroCount: 0, completed: false },
-    { id: 2, hour: 11, title: 'Team Standup', category: 'meeting', duration: 1, pomodoroCount: 0, completed: false },
-    { id: 3, hour: 12, title: 'Lunch Break', category: 'break', duration: 1, pomodoroCount: 0, completed: false },
-    { id: 4, hour: 14, title: 'Project Planning', category: 'work', duration: 2, pomodoroCount: 0, completed: false },
-  ]);
+  const [blocks, setBlocks] = useState([]);
   const [showModal, setShowModal] = useState(false);
   const [selectedHour, setSelectedHour] = useState(null);
   const [currentHour, setCurrentHour] = useState(new Date().getHours());
   const [pomodorosToday, setPomodorosToday] = useState(0);
   const [activeBlockId, setActiveBlockId] = useState(null);
+  const [isConnected, setIsConnected] = useState(!!supabase);
+  const [isSyncing, setIsSyncing] = useState(false);
+  const [isLoading, setIsLoading] = useState(true);
+
+  // Load data from Supabase on mount
+  useEffect(() => {
+    const loadData = async () => {
+      setIsLoading(true);
+      setIsSyncing(true);
+      
+      try {
+        // Load time blocks
+        const { data: blocksData, error: blocksError } = await db.getTimeBlocks();
+        if (!blocksError && blocksData.length > 0) {
+          setBlocks(blocksData);
+        } else {
+          // Load from localStorage as fallback
+          const saved = localStorage.getItem('timeflow_blocks');
+          if (saved) {
+            setBlocks(JSON.parse(saved));
+          } else {
+            // Default blocks for new users
+            setBlocks([
+              { id: 1, hour: 9, title: 'Deep Work Session', category: 'work', duration: 2, pomodoro_count: 0, completed: false },
+              { id: 2, hour: 11, title: 'Team Standup', category: 'meeting', duration: 1, pomodoro_count: 0, completed: false },
+              { id: 3, hour: 12, title: 'Lunch Break', category: 'break', duration: 1, pomodoro_count: 0, completed: false },
+              { id: 4, hour: 14, title: 'Project Planning', category: 'work', duration: 2, pomodoro_count: 0, completed: false },
+            ]);
+          }
+        }
+
+        // Load pomodoro stats
+        const { data: statsData } = await db.getTodayStats();
+        if (statsData) {
+          setPomodorosToday(statsData.pomodoros_completed);
+        } else {
+          const savedStats = localStorage.getItem('timeflow_pomodoros');
+          if (savedStats) {
+            setPomodorosToday(parseInt(savedStats) || 0);
+          }
+        }
+
+        setIsConnected(!!supabase);
+      } catch (error) {
+        console.error('Error loading data:', error);
+        setIsConnected(false);
+      } finally {
+        setIsLoading(false);
+        setIsSyncing(false);
+      }
+    };
+
+    loadData();
+  }, []);
+
+  // Save to localStorage as backup
+  useEffect(() => {
+    if (blocks.length > 0) {
+      localStorage.setItem('timeflow_blocks', JSON.stringify(blocks));
+    }
+    localStorage.setItem('timeflow_pomodoros', pomodorosToday.toString());
+  }, [blocks, pomodorosToday]);
 
   useEffect(() => {
     const interval = setInterval(() => {
@@ -718,31 +829,68 @@ export default function App() {
     return () => clearInterval(interval);
   }, []);
 
-  const handleAddBlock = (block) => {
-    setBlocks([...blocks, block]);
+  const handleAddBlock = async (block) => {
+    setIsSyncing(true);
+    
+    // Optimistic update
+    const tempId = Date.now();
+    const newBlock = { ...block, id: tempId };
+    setBlocks(prev => [...prev, newBlock]);
+    
+    // Save to database
+    const { data, error } = await db.createTimeBlock(block);
+    
+    if (data && !error) {
+      // Update with real ID from database
+      setBlocks(prev => prev.map(b => b.id === tempId ? data : b));
+    }
+    
+    setIsSyncing(false);
   };
 
-  const handleUpdateBlock = (updatedBlock) => {
-    setBlocks(blocks.map(b => b.id === updatedBlock.id ? updatedBlock : b));
+  const handleUpdateBlock = async (updatedBlock) => {
+    setIsSyncing(true);
+    
+    // Optimistic update
+    setBlocks(prev => prev.map(b => b.id === updatedBlock.id ? updatedBlock : b));
+    
+    // Save to database
+    await db.updateTimeBlock(updatedBlock.id, updatedBlock);
+    
+    setIsSyncing(false);
   };
 
-  const handleDeleteBlock = (id) => {
-    setBlocks(blocks.filter(b => b.id !== id));
+  const handleDeleteBlock = async (id) => {
+    setIsSyncing(true);
+    
+    // Optimistic update
+    setBlocks(prev => prev.filter(b => b.id !== id));
+    
+    // Delete from database
+    await db.deleteTimeBlock(id);
+    
+    setIsSyncing(false);
   };
 
-  const handlePomodoroComplete = () => {
-    setPomodorosToday(prev => prev + 1);
+  const handlePomodoroComplete = async () => {
+    const newCount = pomodorosToday + 1;
+    setPomodorosToday(newCount);
+    
+    // Update stats in database
+    await db.updatePomodoroStats(1);
+    
+    // Update block's pomodoro count
     if (activeBlockId) {
-      setBlocks(blocks.map(b => 
-        b.id === activeBlockId 
-          ? { ...b, pomodoroCount: b.pomodoroCount + 1 }
-          : b
-      ));
+      const block = blocks.find(b => b.id === activeBlockId);
+      if (block) {
+        const updatedBlock = { ...block, pomodoro_count: (block.pomodoro_count || 0) + 1 };
+        handleUpdateBlock(updatedBlock);
+      }
     }
   };
 
   const activeBlock = blocks.find(b => b.id === activeBlockId);
-  const hours = Array.from({ length: 16 }, (_, i) => i + 6); // 6 AM to 9 PM
+  const hours = Array.from({ length: 16 }, (_, i) => i + 6);
 
   return (
     <div style={{
@@ -758,6 +906,11 @@ export default function App() {
         @keyframes shimmer {
           0% { transform: translateX(-100%); }
           100% { transform: translateX(100%); }
+        }
+        
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
         }
         
         * {
@@ -810,7 +963,7 @@ export default function App() {
         </header>
 
         {/* Stats */}
-        <StatsPanel blocks={blocks} pomodorosToday={pomodorosToday} />
+        <StatsPanel blocks={blocks} pomodorosToday={pomodorosToday} isLoading={isLoading} />
 
         {/* Main Content */}
         <div style={{
@@ -994,6 +1147,9 @@ export default function App() {
           onClose={() => setShowModal(false)}
         />
       )}
+
+      {/* Connection Status */}
+      <ConnectionStatus isConnected={isConnected} isSyncing={isSyncing} />
     </div>
   );
 }
