@@ -443,7 +443,7 @@ const PomodoroTimer = ({ onComplete, currentTask, preferences }) => {
   const progress = ((durations[mode] - timeLeft) / durations[mode]) * 100;
 
   return (
-    <div style={{
+    <div className="timer-container" style={{
       background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
       borderRadius: '24px',
       padding: '32px',
@@ -468,7 +468,7 @@ const PomodoroTimer = ({ onComplete, currentTask, preferences }) => {
         </div>
       )}
 
-      <div style={{
+      <div className="timer-mode-buttons" style={{
         display: 'flex',
         gap: '8px',
         background: 'rgba(0,0,0,0.3)',
@@ -497,16 +497,16 @@ const PomodoroTimer = ({ onComplete, currentTask, preferences }) => {
         ))}
       </div>
 
-      <div style={{ position: 'relative', width: '280px', height: '280px' }}>
-        <svg width="280" height="280" style={{ transform: 'rotate(-90deg)' }}>
-          <circle cx="140" cy="140" r="120" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="10" />
+      <div className="timer-circle" style={{ position: 'relative', width: '220px', height: '220px' }}>
+        <svg width="220" height="220" style={{ transform: 'rotate(-90deg)' }}>
+          <circle cx="110" cy="110" r="95" fill="none" stroke="rgba(255,255,255,0.1)" strokeWidth="8" />
           <circle
-            cx="140" cy="140" r="120" fill="none"
+            cx="110" cy="110" r="95" fill="none"
             stroke={modeColors[mode]}
-            strokeWidth="10"
+            strokeWidth="8"
             strokeLinecap="round"
-            strokeDasharray={2 * Math.PI * 120}
-            strokeDashoffset={2 * Math.PI * 120 - (progress / 100) * 2 * Math.PI * 120}
+            strokeDasharray={2 * Math.PI * 95}
+            strokeDashoffset={2 * Math.PI * 95 - (progress / 100) * 2 * Math.PI * 95}
             style={{ transition: 'stroke-dashoffset 1s linear', filter: `drop-shadow(0 0 20px ${modeColors[mode]}50)` }}
           />
         </svg>
@@ -519,7 +519,7 @@ const PomodoroTimer = ({ onComplete, currentTask, preferences }) => {
         }}>
           <div style={{
             fontFamily: "'JetBrains Mono', monospace",
-            fontSize: '56px',
+            fontSize: '48px',
             fontWeight: '700',
             color: '#fff',
             textShadow: `0 0 40px ${modeColors[mode]}40`
@@ -528,11 +528,11 @@ const PomodoroTimer = ({ onComplete, currentTask, preferences }) => {
           </div>
           {currentTask && (
             <div style={{
-              fontSize: '13px',
+              fontSize: '12px',
               color: 'rgba(255,255,255,0.6)',
               fontFamily: "'Space Grotesk', sans-serif",
               marginTop: '4px',
-              maxWidth: '180px',
+              maxWidth: '140px',
               overflow: 'hidden',
               textOverflow: 'ellipsis',
               whiteSpace: 'nowrap'
@@ -547,13 +547,13 @@ const PomodoroTimer = ({ onComplete, currentTask, preferences }) => {
         <button
           onClick={toggleTimer}
           style={{
-            width: '120px',
-            padding: '14px 28px',
+            width: '100px',
+            padding: '12px 24px',
             border: 'none',
             borderRadius: '12px',
             cursor: 'pointer',
             fontFamily: "'Space Grotesk', sans-serif",
-            fontSize: '15px',
+            fontSize: '14px',
             fontWeight: '700',
             letterSpacing: '2px',
             background: isRunning ? 'rgba(255,255,255,0.1)' : `linear-gradient(135deg, ${modeColors[mode]} 0%, ${modeColors[mode]}cc 100%)`,
@@ -567,7 +567,7 @@ const PomodoroTimer = ({ onComplete, currentTask, preferences }) => {
         <button
           onClick={resetTimer}
           style={{
-            padding: '14px 20px',
+            padding: '12px 18px',
             border: '2px solid rgba(255,255,255,0.2)',
             borderRadius: '12px',
             cursor: 'pointer',
@@ -586,8 +586,8 @@ const PomodoroTimer = ({ onComplete, currentTask, preferences }) => {
           <div
             key={i}
             style={{
-              width: '14px',
-              height: '14px',
+              width: '12px',
+              height: '12px',
               borderRadius: '50%',
               background: i < (pomodorosCompleted % 4) ? modeColors.work : 'rgba(255,255,255,0.1)',
               border: `2px solid ${i < (pomodorosCompleted % 4) ? modeColors.work : 'rgba(255,255,255,0.2)'}`,
@@ -596,9 +596,9 @@ const PomodoroTimer = ({ onComplete, currentTask, preferences }) => {
           />
         ))}
         <span style={{
-          marginLeft: '12px',
+          marginLeft: '10px',
           fontFamily: "'JetBrains Mono', monospace",
-          fontSize: '13px',
+          fontSize: '12px',
           color: 'rgba(255,255,255,0.5)'
         }}>
           {pomodorosCompleted} today
@@ -836,14 +836,15 @@ const AddBlockModal = ({ hour, date, onAdd, onClose }) => {
       alignItems: 'center',
       justifyContent: 'center',
       zIndex: 1000,
-      backdropFilter: 'blur(10px)'
+      backdropFilter: 'blur(10px)',
+      padding: '20px'
     }}>
       <div style={{
         background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
         borderRadius: '24px',
         padding: '32px',
         width: '420px',
-        maxWidth: '90vw',
+        maxWidth: '100%',
         maxHeight: '90vh',
         overflowY: 'auto',
         border: '1px solid rgba(255,255,255,0.1)'
@@ -956,7 +957,7 @@ const AddBlockModal = ({ hour, date, onAdd, onClose }) => {
               }}>
                 Repeat
               </label>
-              <div style={{ display: 'flex', gap: '8px' }}>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
                 {recurrenceOptions.map((opt) => (
                   <button
                     key={opt.value}
@@ -964,6 +965,7 @@ const AddBlockModal = ({ hour, date, onAdd, onClose }) => {
                     onClick={() => setRecurrencePattern(opt.value)}
                     style={{
                       flex: 1,
+                      minWidth: '90px',
                       padding: '10px',
                       borderRadius: '10px',
                       border: recurrencePattern === opt.value ? '2px solid #4ECDC4' : '1px solid rgba(255,255,255,0.1)',
@@ -1065,15 +1067,15 @@ const AnalyticsDashboard = ({ stats, weeklyData, blocks }) => {
   const maxPomodoros = Math.max(...dailyPomodoros.map(d => d.pomodoros), 1);
 
   return (
-    <div style={{
+    <div className="analytics-container" style={{
       background: 'rgba(255,255,255,0.02)',
       borderRadius: '24px',
-      padding: '28px',
+      padding: '24px',
       border: '1px solid rgba(255,255,255,0.05)'
     }}>
       <h2 style={{
-        margin: '0 0 24px 0',
-        fontSize: '20px',
+        margin: '0 0 20px 0',
+        fontSize: '18px',
         fontWeight: '600',
         color: 'rgba(255,255,255,0.9)',
         fontFamily: "'Space Grotesk', sans-serif"
@@ -1082,11 +1084,11 @@ const AnalyticsDashboard = ({ stats, weeklyData, blocks }) => {
       </h2>
 
       {/* Stats Grid */}
-      <div style={{
+      <div className="stats-grid" style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(4, 1fr)',
-        gap: '16px',
-        marginBottom: '28px'
+        gap: '12px',
+        marginBottom: '24px'
       }}>
         {[
           { label: 'Pomodoros', value: totalPomodoros, icon: '🍅', color: '#FF6B6B' },
@@ -1096,25 +1098,25 @@ const AnalyticsDashboard = ({ stats, weeklyData, blocks }) => {
         ].map((stat, i) => (
           <div key={i} style={{
             background: 'rgba(0,0,0,0.2)',
-            borderRadius: '16px',
-            padding: '16px',
+            borderRadius: '12px',
+            padding: '12px 8px',
             textAlign: 'center'
           }}>
-            <div style={{ fontSize: '20px', marginBottom: '8px' }}>{stat.icon}</div>
+            <div style={{ fontSize: '16px', marginBottom: '4px' }}>{stat.icon}</div>
             <div style={{
               fontFamily: "'JetBrains Mono', monospace",
-              fontSize: '24px',
+              fontSize: '18px',
               fontWeight: '700',
               color: stat.color
             }}>
               {stat.value}
             </div>
             <div style={{
-              fontSize: '11px',
+              fontSize: '9px',
               color: 'rgba(255,255,255,0.4)',
               textTransform: 'uppercase',
-              letterSpacing: '1px',
-              marginTop: '4px'
+              letterSpacing: '0.5px',
+              marginTop: '2px'
             }}>
               {stat.label}
             </div>
@@ -1123,16 +1125,16 @@ const AnalyticsDashboard = ({ stats, weeklyData, blocks }) => {
       </div>
 
       {/* Daily Chart */}
-      <div style={{ marginBottom: '28px' }}>
+      <div style={{ marginBottom: '24px' }}>
         <h3 style={{
-          fontSize: '14px',
+          fontSize: '13px',
           color: 'rgba(255,255,255,0.6)',
-          marginBottom: '16px',
+          marginBottom: '12px',
           fontFamily: "'Space Grotesk', sans-serif"
         }}>
           Daily Pomodoros
         </h3>
-        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '12px', height: '120px' }}>
+        <div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px', height: '80px' }}>
           {dailyPomodoros.map((d, i) => (
             <div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}>
               <div style={{
@@ -1141,14 +1143,14 @@ const AnalyticsDashboard = ({ stats, weeklyData, blocks }) => {
                 background: d.pomodoros > 0 
                   ? 'linear-gradient(180deg, #FF6B6B 0%, #FF8E8E 100%)'
                   : 'rgba(255,255,255,0.1)',
-                borderRadius: '8px 8px 4px 4px',
-                minHeight: '8px',
+                borderRadius: '6px 6px 4px 4px',
+                minHeight: '6px',
                 transition: 'height 0.3s ease'
               }} />
               <span style={{
-                fontSize: '11px',
+                fontSize: '9px',
                 color: 'rgba(255,255,255,0.5)',
-                marginTop: '8px',
+                marginTop: '6px',
                 fontFamily: "'JetBrains Mono', monospace"
               }}>
                 {d.day}
@@ -1161,31 +1163,31 @@ const AnalyticsDashboard = ({ stats, weeklyData, blocks }) => {
       {/* Category Breakdown */}
       <div>
         <h3 style={{
-          fontSize: '14px',
+          fontSize: '13px',
           color: 'rgba(255,255,255,0.6)',
-          marginBottom: '16px',
+          marginBottom: '12px',
           fontFamily: "'Space Grotesk', sans-serif"
         }}>
           Category Breakdown
         </h3>
-        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
           {Object.entries(categoryBreakdown).map(([cat, count]) => (
             <div key={cat} style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '8px',
+              gap: '6px',
               background: `${categoryColors[cat]}20`,
-              padding: '8px 14px',
-              borderRadius: '20px'
+              padding: '6px 10px',
+              borderRadius: '16px'
             }}>
               <div style={{
-                width: '10px',
-                height: '10px',
+                width: '8px',
+                height: '8px',
                 borderRadius: '50%',
                 background: categoryColors[cat]
               }} />
               <span style={{
-                fontSize: '13px',
+                fontSize: '11px',
                 color: '#fff',
                 textTransform: 'capitalize',
                 fontFamily: "'Space Grotesk', sans-serif"
@@ -1367,31 +1369,104 @@ export default function App() {
       background: 'linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%)',
       fontFamily: "'Space Grotesk', sans-serif",
       color: '#fff',
-      padding: '24px 20px'
+      padding: '16px 12px'
     }}>
       <style>{`
         @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
         * { box-sizing: border-box; }
-        ::-webkit-scrollbar { width: 8px; }
+        ::-webkit-scrollbar { width: 6px; }
         ::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 4px; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
         @keyframes pulse {
           0%, 100% { opacity: 1; }
           50% { opacity: 0.5; }
         }
+        
+        /* Mobile Responsive Styles */
+        @media (max-width: 900px) {
+          .main-layout {
+            grid-template-columns: 1fr !important;
+          }
+          .right-column {
+            order: -1;
+          }
+          .header-content {
+            flex-wrap: wrap;
+            gap: 12px;
+          }
+          .header-left {
+            width: 100%;
+            text-align: center;
+          }
+          .header-right {
+            width: 100%;
+            justify-content: center;
+            flex-wrap: wrap;
+          }
+          .user-menu {
+            order: -1;
+            width: 100%;
+            justify-content: center;
+          }
+          .week-nav {
+            flex-direction: column;
+            gap: 12px;
+            align-items: stretch;
+          }
+          .week-nav-buttons {
+            display: flex;
+            justify-content: space-between;
+          }
+          .week-nav-date {
+            text-align: center;
+          }
+          .stats-grid {
+            grid-template-columns: repeat(2, 1fr) !important;
+          }
+          .timer-container {
+            padding: 24px 16px !important;
+          }
+          .timer-circle {
+            width: 200px !important;
+            height: 200px !important;
+          }
+          .timer-mode-buttons button {
+            padding: 8px 12px !important;
+            font-size: 10px !important;
+          }
+        }
+        
+        @media (max-width: 480px) {
+          .app-title {
+            font-size: 28px !important;
+          }
+          .view-toggle button {
+            padding: 6px 12px !important;
+            font-size: 11px !important;
+          }
+          .user-name {
+            display: none;
+          }
+          .timer-circle {
+            width: 180px !important;
+            height: 180px !important;
+          }
+        }
       `}</style>
 
       <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
         {/* Header */}
-        <header style={{
+        <header className="header-content" style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: '32px'
+          marginBottom: '24px',
+          flexWrap: 'wrap',
+          gap: '12px'
         }}>
-          <div>
-            <h1 style={{
-              fontSize: '36px',
+          <div className="header-left">
+            <h1 className="app-title" style={{
+              fontSize: '32px',
               fontWeight: '700',
               margin: 0,
               background: 'linear-gradient(135deg, #FF6B6B 0%, #4ECDC4 50%, #45B7D1 100%)',
@@ -1402,9 +1477,9 @@ export default function App() {
             </h1>
           </div>
           
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div className="header-right" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
             {/* View Toggle */}
-            <div style={{
+            <div className="view-toggle" style={{
               display: 'flex',
               background: 'rgba(0,0,0,0.3)',
               borderRadius: '10px',
@@ -1415,12 +1490,12 @@ export default function App() {
                   key={mode}
                   onClick={() => setViewMode(mode)}
                   style={{
-                    padding: '8px 16px',
+                    padding: '8px 14px',
                     borderRadius: '8px',
                     border: 'none',
                     background: viewMode === mode ? 'rgba(255,255,255,0.15)' : 'transparent',
                     color: viewMode === mode ? '#fff' : 'rgba(255,255,255,0.5)',
-                    fontSize: '13px',
+                    fontSize: '12px',
                     fontWeight: '600',
                     cursor: 'pointer',
                     textTransform: 'capitalize'
@@ -1432,31 +1507,31 @@ export default function App() {
             </div>
 
             {/* User Menu */}
-            <div style={{
+            <div className="user-menu" style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '12px',
+              gap: '10px',
               background: 'rgba(255,255,255,0.05)',
-              padding: '8px 16px',
+              padding: '6px 12px',
               borderRadius: '12px'
             }}>
               <img 
                 src={user.user_metadata?.avatar_url || `https://ui-avatars.com/api/?name=${user.email}&background=FF6B6B&color=fff`}
                 alt="Avatar"
-                style={{ width: '32px', height: '32px', borderRadius: '50%' }}
+                style={{ width: '28px', height: '28px', borderRadius: '50%' }}
               />
-              <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.8)' }}>
+              <span className="user-name" style={{ fontSize: '13px', color: 'rgba(255,255,255,0.8)' }}>
                 {user.user_metadata?.full_name || user.email?.split('@')[0]}
               </span>
               <button
                 onClick={handleSignOut}
                 style={{
-                  padding: '6px 12px',
+                  padding: '5px 10px',
                   borderRadius: '8px',
                   border: '1px solid rgba(255,255,255,0.2)',
                   background: 'transparent',
                   color: 'rgba(255,255,255,0.6)',
-                  fontSize: '12px',
+                  fontSize: '11px',
                   cursor: 'pointer'
                 }}
               >
@@ -1468,55 +1543,59 @@ export default function App() {
 
         {/* Week Navigation */}
         {viewMode === 'week' && (
-          <div style={{
+          <div className="week-nav" style={{
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
-            marginBottom: '24px'
+            marginBottom: '20px',
+            flexWrap: 'wrap',
+            gap: '12px'
           }}>
             <button
               onClick={() => navigateWeek(-1)}
               style={{
-                padding: '10px 20px',
+                padding: '8px 16px',
                 borderRadius: '10px',
                 border: '1px solid rgba(255,255,255,0.1)',
                 background: 'transparent',
                 color: 'rgba(255,255,255,0.7)',
                 cursor: 'pointer',
-                fontSize: '14px'
+                fontSize: '13px'
               }}
             >
-              ← Previous Week
+              ← Prev
             </button>
-            <div style={{
+            <div className="week-nav-date" style={{
               fontFamily: "'JetBrains Mono', monospace",
-              fontSize: '16px',
-              color: 'rgba(255,255,255,0.8)'
+              fontSize: '14px',
+              color: 'rgba(255,255,255,0.8)',
+              flex: 1,
+              textAlign: 'center'
             }}>
               {formatDateShort(weekDates[0])} - {formatDateShort(weekDates[6])}
             </div>
             <button
               onClick={() => navigateWeek(1)}
               style={{
-                padding: '10px 20px',
+                padding: '8px 16px',
                 borderRadius: '10px',
                 border: '1px solid rgba(255,255,255,0.1)',
                 background: 'transparent',
                 color: 'rgba(255,255,255,0.7)',
                 cursor: 'pointer',
-                fontSize: '14px'
+                fontSize: '13px'
               }}
             >
-              Next Week →
+              Next →
             </button>
           </div>
         )}
 
-        {/* Main Content */}
-        <div style={{
+        {/* Main Content - MOBILE RESPONSIVE GRID */}
+        <div className="main-layout" style={{
           display: 'grid',
-          gridTemplateColumns: viewMode === 'week' ? '1fr 360px' : '1fr 400px',
-          gap: '28px'
+          gridTemplateColumns: viewMode === 'week' ? '1fr 320px' : '1fr 340px',
+          gap: '20px'
         }}>
           {/* Schedule */}
           <div>
@@ -1524,35 +1603,35 @@ export default function App() {
               // Week View
               <div style={{
                 background: 'rgba(255,255,255,0.02)',
-                borderRadius: '24px',
-                padding: '20px',
+                borderRadius: '20px',
+                padding: '16px',
                 border: '1px solid rgba(255,255,255,0.05)',
                 overflowX: 'auto'
               }}>
                 <div style={{
                   display: 'grid',
-                  gridTemplateColumns: '60px repeat(7, 1fr)',
-                  gap: '8px',
-                  minWidth: '800px'
+                  gridTemplateColumns: '50px repeat(7, 1fr)',
+                  gap: '6px',
+                  minWidth: '700px'
                 }}>
                   {/* Header row */}
                   <div></div>
                   {weekDates.map((date) => (
                     <div key={date} style={{
                       textAlign: 'center',
-                      padding: '12px 8px',
+                      padding: '10px 6px',
                       background: date === today ? 'rgba(255,107,107,0.2)' : 'transparent',
-                      borderRadius: '12px'
+                      borderRadius: '10px'
                     }}>
                       <div style={{
-                        fontSize: '12px',
+                        fontSize: '11px',
                         color: date === today ? '#FF6B6B' : 'rgba(255,255,255,0.5)',
                         fontWeight: '600'
                       }}>
                         {getDayName(date)}
                       </div>
                       <div style={{
-                        fontSize: '18px',
+                        fontSize: '16px',
                         fontWeight: '700',
                         color: date === today ? '#FF6B6B' : '#fff',
                         fontFamily: "'JetBrains Mono', monospace"
@@ -1566,12 +1645,12 @@ export default function App() {
                   {hours.map(hour => (
                     <React.Fragment key={hour}>
                       <div style={{
-                        fontSize: '11px',
+                        fontSize: '10px',
                         color: 'rgba(255,255,255,0.4)',
                         fontFamily: "'JetBrains Mono', monospace",
                         paddingTop: '8px',
                         textAlign: 'right',
-                        paddingRight: '8px'
+                        paddingRight: '6px'
                       }}>
                         {formatHour(hour)}
                       </div>
@@ -1590,12 +1669,12 @@ export default function App() {
                               }
                             }}
                             style={{
-                              minHeight: '48px',
-                              borderRadius: '8px',
+                              minHeight: '44px',
+                              borderRadius: '6px',
                               border: '1px dashed rgba(255,255,255,0.1)',
                               cursor: 'pointer',
                               transition: 'all 0.2s ease',
-                              padding: '4px'
+                              padding: '3px'
                             }}
                           >
                             {block && (
@@ -1618,32 +1697,32 @@ export default function App() {
               // Day View
               <div style={{
                 background: 'rgba(255,255,255,0.02)',
-                borderRadius: '24px',
-                padding: '28px',
+                borderRadius: '20px',
+                padding: '24px',
                 border: '1px solid rgba(255,255,255,0.05)'
               }}>
                 <div style={{
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  marginBottom: '24px'
+                  marginBottom: '20px'
                 }}>
-                  <h2 style={{ margin: 0, fontSize: '20px', fontWeight: '600' }}>
+                  <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>
                     Today's Schedule
                   </h2>
                   <div style={{
                     fontFamily: "'JetBrains Mono', monospace",
-                    fontSize: '14px',
+                    fontSize: '13px',
                     color: 'rgba(255,255,255,0.4)',
                     background: 'rgba(255,255,255,0.05)',
-                    padding: '8px 16px',
-                    borderRadius: '20px'
+                    padding: '6px 14px',
+                    borderRadius: '16px'
                   }}>
                     {formatDateShort(selectedDate)}
                   </div>
                 </div>
 
-                <div style={{ maxHeight: '600px', overflowY: 'auto', paddingRight: '8px' }}>
+                <div style={{ maxHeight: '500px', overflowY: 'auto', paddingRight: '8px' }}>
                   {hours.map(hour => {
                     const block = blocks.find(b => b.date === selectedDate && b.hour === hour);
                     const isCurrentHour = hour === currentHour && selectedDate === today;
@@ -1653,14 +1732,14 @@ export default function App() {
                         {isCurrentHour && (
                           <div style={{
                             position: 'absolute',
-                            left: '-16px',
+                            left: '-12px',
                             top: '50%',
                             transform: 'translateY(-50%)',
-                            width: '10px',
-                            height: '10px',
+                            width: '8px',
+                            height: '8px',
                             background: '#FF6B6B',
                             borderRadius: '50%',
-                            boxShadow: '0 0 20px #FF6B6B'
+                            boxShadow: '0 0 16px #FF6B6B'
                           }} />
                         )}
                         
@@ -1680,24 +1759,24 @@ export default function App() {
                               setShowModal(true);
                             }}
                             style={{
-                              borderRadius: '16px',
-                              padding: '16px 20px',
-                              marginBottom: '10px',
+                              borderRadius: '14px',
+                              padding: '14px 18px',
+                              marginBottom: '8px',
                               border: '2px dashed rgba(255,255,255,0.1)',
                               cursor: 'pointer',
                               display: 'flex',
                               alignItems: 'center',
-                              gap: '16px'
+                              gap: '14px'
                             }}
                           >
                             <span style={{
                               fontFamily: "'JetBrains Mono', monospace",
-                              fontSize: '12px',
+                              fontSize: '11px',
                               color: 'rgba(255,255,255,0.3)'
                             }}>
                               {formatHour(hour)}
                             </span>
-                            <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '14px' }}>
+                            <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '13px' }}>
                               + Add block
                             </span>
                           </div>
@@ -1710,8 +1789,8 @@ export default function App() {
             )}
           </div>
 
-          {/* Right Column */}
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+          {/* Right Column - Timer & Analytics */}
+          <div className="right-column" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
             <PomodoroTimer 
               onComplete={handlePomodoroComplete}
               currentTask={activeBlock?.title}
@@ -1740,26 +1819,26 @@ export default function App() {
       {/* Sync Indicator */}
       <div style={{
         position: 'fixed',
-        bottom: '20px',
-        right: '20px',
+        bottom: '16px',
+        right: '16px',
         display: 'flex',
         alignItems: 'center',
-        gap: '8px',
+        gap: '6px',
         background: 'rgba(0,0,0,0.6)',
-        padding: '10px 16px',
-        borderRadius: '20px',
+        padding: '8px 14px',
+        borderRadius: '16px',
         backdropFilter: 'blur(10px)'
       }}>
         <div style={{
-          width: '8px',
-          height: '8px',
+          width: '6px',
+          height: '6px',
           borderRadius: '50%',
           background: isSyncing ? '#FFC75F' : '#4ECDC4',
           animation: isSyncing ? 'pulse 1s infinite' : 'none'
         }} />
         <span style={{
           fontFamily: "'JetBrains Mono', monospace",
-          fontSize: '11px',
+          fontSize: '10px',
           color: 'rgba(255,255,255,0.6)'
         }}>
           {isSyncing ? 'Syncing...' : 'Synced'}
