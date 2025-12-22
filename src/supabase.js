@@ -1,82 +1,90 @@
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+// Supabase configuration - hardcoded with env var override
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL 
+  || 'https://wektbfkzbxvtxsremnnk.supabase.co';
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY 
+  || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indla3RiZmt6Ynh2dHhzcmVtbm5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU4NDcyNjMsImV4cCI6MjA4MTQyMzI2M30.-oLnJRoDBpqgzDZ7bM3fm6TXBNGH6SaRpnKDiHQZ3_4';
 
-export const supabase = supabaseUrl && supabaseAnonKey ? createClient(supabaseUrl, supabaseAnonKey) : null;
+export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
+// Auth helpers
 export const auth = {
   async signInWithGoogle() {
-    if (!supabase) return { error: new Error('Supabase not configured') };
-    return await supabase.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin } });
+    return await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: { redirectTo: window.location.origin }
+    });
   },
-  async signOut() { if (!supabase) return { error: null }; return await supabase.auth.signOut(); },
-  async getUser() { if (!supabase) return { data: { user: null }, error: null }; return await supabase.auth.getUser(); },
-  async getSession() { if (!supabase) return { data: { session: null }, error: null }; return await supabase.auth.getSession(); },
-  onAuthStateChange(callback) { if (!supabase) return { data: { subscription: { unsubscribe: () => {} } } }; return supabase.auth.onAuthStateChange(callback); }
+  async signOut() { return await supabase.auth.signOut(); },
+  async getUser() { return await supabase.auth.getUser(); },
+  async getSession() { return await supabase.auth.getSession(); },
+  onAuthStateChange(callback) { return supabase.auth.onAuthStateChange(callback); }
 };
 
+// Database helpers
 export const db = {
   async getTimeBlocks(userId, startDate, endDate) {
-    if (!supabase || !userId) return { data: [], error: null };
-    let query = supabase.from('time_blocks').select('*').eq('user_id', userId).order('hour', { ascending: true });
+    if (!userId) return { data: [], error: null };
+    let query = supabase.from('time_blocks').select('*')
+      .eq('user_id', userId).order('hour', { ascending: true });
     if (startDate && endDate) query = query.gte('date', startDate).lte('date', endDate);
     else if (startDate) query = query.eq('date', startDate);
     return await query;
   },
   async createTimeBlock(userId, block) {
-    if (!supabase || !userId) return { data: null, error: new Error('Not authenticated') };
+    if (!userId) return { data: null, error: new Error('Not authenticated') };
     return await supabase.from('time_blocks').insert({ ...block, user_id: userId }).select().single();
   },
   async updateTimeBlock(userId, id, updates) {
-    if (!supabase || !userId) return { data: null, error: new Error('Not authenticated') };
-    return await supabase.from('time_blocks').update({ ...updates, updated_at: new Date().toISOString() }).eq('id', id).eq('user_id', userId).select().single();
+    if (!userId) return { data: null, error: new Error('Not authenticated') };
+    return await supabase.from('time_blocks').update({ ...updates, updated_at: new Date().toISOString() })
+      .eq('id', id).eq('user_id', userId).select().single();
   },
   async deleteTimeBlock(userId, id) {
-    if (!supabase || !userId) return { error: null };
+    if (!userId) return { error: null };
     return await supabase.from('time_blocks').delete().eq('id', id).eq('user_id', userId);
   },
+  async createRecurringTask(userId, task) {
+    if (!userId) return { data: null, error: new Error('Not authenticated') };
+    return await supabase.from('time_blocks').insert({ ...task, user_id: userId, is_recurring: true }).select().single();
+  },
+  async getTodayStats(userId) {
+    if (!userId) return { data: { pomodoros_completed: 0, focus_minutes: 0 }, error: null };
+    const today = new Date().toISOString().split('T')[0];
+    const { data, error } = await supabase.from('pomodoro_stats').select('*').eq('user_id', userId).eq('date', today).single();
+    if (error && error.code === 'PGRST116') return { data: { pomodoros_completed: 0, focus_minutes: 0 }, error: null };
+    return { data, error };
+  },
   async getStatsRange(userId, startDate, endDate) {
-    if (!supabase || !userId) return { data: [], error: null };
+    if (!userId) return { data: [], error: null };
     return await supabase.from('pomodoro_stats').select('*').eq('user_id', userId).gte('date', startDate).lte('date', endDate).order('date', { ascending: true });
   },
   async updatePomodoroStats(userId, category = 'work') {
-    if (!supabase || !userId) return { error: null };
+    if (!userId) return { error: null };
     const today = new Date().toISOString().split('T')[0];
     const { data: existing } = await supabase.from('pomodoro_stats').select('*').eq('user_id', userId).eq('date', today).single();
     if (existing) {
       const breakdown = existing.categories_breakdown || {};
       breakdown[category] = (breakdown[category] || 0) + 1;
-      return await supabase.from('pomodoro_stats').update({ pomodoros_completed: existing.pomodoros_completed + 1, focus_minutes: existing.focus_minutes + 25, categories_breakdown: breakdown, updated_at: new Date().toISOString() }).eq('id', existing.id);
+      return await supabase.from('pomodoro_stats').update({
+        pomodoros_completed: existing.pomodoros_completed + 1, focus_minutes: existing.focus_minutes + 25,
+        categories_breakdown: breakdown, updated_at: new Date().toISOString()
+      }).eq('id', existing.id);
+    } else {
+      return await supabase.from('pomodoro_stats').insert({
+        user_id: userId, date: today, pomodoros_completed: 1, focus_minutes: 25, categories_breakdown: { [category]: 1 }
+      });
     }
-    return await supabase.from('pomodoro_stats').insert({ user_id: userId, date: today, pomodoros_completed: 1, focus_minutes: 25, categories_breakdown: { [category]: 1 } });
-  },
-  async getGoals(userId) {
-    if (!supabase || !userId) return { data: [], error: null };
-    return await supabase.from('user_goals').select('*').eq('user_id', userId).eq('is_active', true);
-  },
-  async upsertGoals(userId, goals) {
-    if (!supabase || !userId) return { error: null };
-    await supabase.from('user_goals').update({ is_active: false }).eq('user_id', userId);
-    const goalsWithUser = goals.map(g => ({ ...g, user_id: userId, is_active: true, updated_at: new Date().toISOString() }));
-    return await supabase.from('user_goals').upsert(goalsWithUser, { onConflict: 'user_id,type' });
   },
   async getPreferences(userId) {
-    if (!supabase || !userId) return { data: null, error: null };
+    if (!userId) return { data: null, error: null };
     const { data, error } = await supabase.from('user_preferences').select('*').eq('user_id', userId).single();
     if (error && error.code === 'PGRST116') return { data: null, error: null };
     return { data, error };
   },
   async upsertPreferences(userId, preferences) {
-    if (!supabase || !userId) return { error: null };
+    if (!userId) return { error: null };
     return await supabase.from('user_preferences').upsert({ user_id: userId, ...preferences, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
-  },
-  async saveCalendarSync(userId, syncData) {
-    if (!supabase || !userId) return { error: null };
-    return await supabase.from('calendar_sync').upsert({ user_id: userId, ...syncData, synced_at: new Date().toISOString() }, { onConflict: 'user_id' });
-  },
-  async getCalendarSync(userId) {
-    if (!supabase || !userId) return { data: null, error: null };
-    return await supabase.from('calendar_sync').select('*').eq('user_id', userId).single();
   }
 };
