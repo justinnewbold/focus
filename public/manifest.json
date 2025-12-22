@@ -1,0 +1,36 @@
+{
+  "name": "TimeFlow - Focus & Productivity",
+  "short_name": "TimeFlow",
+  "description": "Master your day with focused time blocking and Pomodoro timer",
+  "start_url": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "theme_color": "#FF6B6B",
+  "background_color": "#0f0f1a",
+  "categories": ["productivity", "utilities"],
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/icons/icon-192x192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "/icons/icon-512x512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "/icons/icon-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    {
+      "name": "Start Pomodoro",
+      "short_name": "Pomodoro",
+      "description": "Start a 25-minute focus session",
+      "url": "/?action=pomodoro",
+      "icons": [{ "src": "/icon.svg", "sizes": "96x96" }]
+    },
+    {
+      "name": "View Analytics",
+      "short_name": "Stats",
+      "description": "View your productivity stats",
+      "url": "/?view=analytics",
+      "icons": [{ "src": "/icon.svg", "sizes": "96x96" }]
+    }
+  ],
+  "screenshots": [
+    { "src": "/icon.svg", "sizes": "1080x1920", "type": "image/svg+xml", "form_factor": "narrow" }
+  ]
+}
