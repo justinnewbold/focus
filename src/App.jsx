@@ -53,6 +53,43 @@ const requestNotificationPermission = async () => {
 };
 
 // ============================================
+// TIMER PERSISTENCE UTILITIES
+// ============================================
+
+const TIMER_STORAGE_KEY = 'focus_timer_state';
+
+const saveTimerState = (state) => {
+  try {
+    const stateWithTimestamp = {
+      ...state,
+      savedAt: Date.now()
+    };
+    localStorage.setItem(TIMER_STORAGE_KEY, JSON.stringify(stateWithTimestamp));
+  } catch (e) {
+    console.error('Failed to save timer state:', e);
+  }
+};
+
+const loadTimerState = () => {
+  try {
+    const saved = localStorage.getItem(TIMER_STORAGE_KEY);
+    if (!saved) return null;
+    return JSON.parse(saved);
+  } catch (e) {
+    console.error('Failed to load timer state:', e);
+    return null;
+  }
+};
+
+const clearTimerState = () => {
+  try {
+    localStorage.removeItem(TIMER_STORAGE_KEY);
+  } catch (e) {
+    console.error('Failed to clear timer state:', e);
+  }
+};
+
+// ============================================
 // SOUND HOOK
 // ============================================
 
@@ -206,8 +243,8 @@ const AuthScreen = ({ onSignIn }) => {
   );
 };
 
-// ==
-// POMODORO TIMER COMPONENT
+// ============================================
+// POMODORO TIMER COMPONENT WITH PERSISTENCE
 // ============================================
 
 const PomodoroTimer = ({ onComplete, currentTask, preferences }) => {
@@ -217,10 +254,59 @@ const PomodoroTimer = ({ onComplete, currentTask, preferences }) => {
     longBreak: (preferences?.long_break_duration || 15) * 60
   };
 
-  const [mode, setMode] = useState('work');
-  const [timeLeft, setTimeLeft] = useState(durations.work);
-  const [isRunning, setIsRunning] = useState(false);
-  const [pomodorosCompleted, setPomodorosCompleted] = useState(0);
+  // Initialize state from localStorage if available
+  const initializeState = () => {
+    const saved = loadTimerState();
+    if (saved && saved.isRunning) {
+      // Calculate how much time has passed since the timer was saved
+      const elapsedSeconds = Math.floor((Date.now() - saved.savedAt) / 1000);
+      const adjustedTimeLeft = saved.timeLeft - elapsedSeconds;
+      
+      if (adjustedTimeLeft <= 0) {
+        // Timer would have completed while away
+        return {
+          mode: saved.mode,
+          timeLeft: 0,
+          isRunning: false,
+          pomodorosCompleted: saved.pomodorosCompleted,
+          shouldComplete: true
+        };
+      }
+      
+      return {
+        mode: saved.mode,
+        timeLeft: adjustedTimeLeft,
+        isRunning: true,
+        pomodorosCompleted: saved.pomodorosCompleted,
+        shouldComplete: false
+      };
+    }
+    
+    if (saved) {
+      return {
+        mode: saved.mode || 'work',
+        timeLeft: saved.timeLeft || durations.work,
+        isRunning: false,
+        pomodorosCompleted: saved.pomodorosCompleted || 0,
+        shouldComplete: false
+      };
+    }
+    
+    return {
+      mode: 'work',
+      timeLeft: durations.work,
+      isRunning: false,
+      pomodorosCompleted: 0,
+      shouldComplete: false
+    };
+  };
+
+  const initialState = useRef(initializeState());
+  
+  const [mode, setMode] = useState(initialState.current.mode);
+  const [timeLeft, setTimeLeft] = useState(initialState.current.timeLeft);
+  const [isRunning, setIsRunning] = useState(initialState.current.isRunning);
+  const [pomodorosCompleted, setPomodorosCompleted] = useState(initialState.current.pomodorosCompleted);
   const playSound = useSound();
   
   const modeColors = {
@@ -235,13 +321,78 @@ const PomodoroTimer = ({ onComplete, currentTask, preferences }) => {
     longBreak: 'LONG BREAK'
   };
 
+  // Handle timer completion that happened while away
   useEffect(() => {
-    setTimeLeft(durations[mode]);
-  }, [preferences, mode]);
+    if (initialState.current.shouldComplete) {
+      playSound('complete');
+      if (initialState.current.mode === 'work') {
+        const newCount = initialState.current.pomodorosCompleted + 1;
+        setPomodorosCompleted(newCount);
+        onComplete && onComplete();
+        notify('🍅 Pomodoro Completed!', 'Great work! Your session finished while you were away.');
+        if (newCount % 4 === 0) {
+          setMode('longBreak');
+          setTimeLeft(durations.longBreak);
+        } else {
+          setMode('shortBreak');
+          setTimeLeft(durations.shortBreak);
+        }
+      } else {
+        notify('⏰ Break Over!', 'Ready to focus again?');
+        setMode('work');
+        setTimeLeft(durations.work);
+      }
+      initialState.current.shouldComplete = false;
+    }
+  }, []);
+
+  // Save timer state whenever it changes
+  useEffect(() => {
+    saveTimerState({
+      mode,
+      timeLeft,
+      isRunning,
+      pomodorosCompleted
+    });
+  }, [mode, timeLeft, isRunning, pomodorosCompleted]);
+
+  // Update document title with timer
+  useEffect(() => {
+    if (isRunning) {
+      document.title = `${formatTime(timeLeft)} - ${modeLabels[mode]} | FOCUS`;
+    } else {
+      document.title = 'FOCUS - Time Blocking App';
+    }
+    return () => {
+      document.title = 'FOCUS - Time Blocking App';
+    };
+  }, [timeLeft, isRunning, mode]);
 
   useEffect(() => {
     requestNotificationPermission();
   }, []);
+
+  // Handle visibility change - recalculate time when tab becomes visible
+  useEffect(() => {
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible' && isRunning) {
+        const saved = loadTimerState();
+        if (saved && saved.isRunning) {
+          const elapsedSeconds = Math.floor((Date.now() - saved.savedAt) / 1000);
+          const adjustedTimeLeft = saved.timeLeft - elapsedSeconds;
+          
+          if (adjustedTimeLeft <= 0) {
+            setTimeLeft(0);
+          } else {
+            setTimeLeft(adjustedTimeLeft);
+          }
+        }
+      }
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [isRunning]);
 
   useEffect(() => {
     let interval;
@@ -290,8 +441,6 @@ const PomodoroTimer = ({ onComplete, currentTask, preferences }) => {
   };
 
   const progress = ((durations[mode] - timeLeft) / durations[mode]) * 100;
-  const circumference = 2 * Math.PI * 140;
-  const strokeDashoffset = circumference - (progress / 100) * circumference;
 
   return (
     <div style={{
@@ -305,6 +454,20 @@ const PomodoroTimer = ({ onComplete, currentTask, preferences }) => {
       boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
       border: '1px solid rgba(255,255,255,0.05)'
     }}>
+      {/* Persistence indicator */}
+      {isRunning && (
+        <div style={{
+          fontSize: '11px',
+          color: 'rgba(255,255,255,0.4)',
+          fontFamily: "'JetBrains Mono', monospace",
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px'
+        }}>
+          <span style={{ color: '#4ECDC4' }}>●</span> Timer persists across tabs
+        </div>
+      )}
+
       <div style={{
         display: 'flex',
         gap: '8px',
@@ -1158,6 +1321,7 @@ export default function App() {
   };
 
   const handleSignOut = async () => {
+    clearTimerState(); // Clear timer state on sign out
     await auth.signOut();
     setUser(null);
     setBlocks([]);
@@ -1211,6 +1375,10 @@ export default function App() {
         ::-webkit-scrollbar { width: 8px; }
         ::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 4px; }
         ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.5; }
+        }
       `}</style>
 
       <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
