@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- TimeFlow v2.1 - Cache buster -->
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
@@ -18,14 +19,24 @@
   </head>
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.jsx"></script>
     <script>
+      // Force cache clear on load
+      if ('caches' in window) {
+        caches.keys().then(names => {
+          names.forEach(name => caches.delete(name));
+        });
+      }
+      // Unregister old service workers
       if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
+        navigator.serviceWorker.getRegistrations().then(registrations => {
+          registrations.forEach(reg => reg.unregister());
+        });
+        // Re-register after clearing
+        setTimeout(() => {
           navigator.serviceWorker.register('/sw.js')
             .then(reg => console.log('SW registered:', reg.scope))
             .catch(err => console.log('SW failed:', err));
-        });
+        }, 1000);
       }
     </script>
   </body>
