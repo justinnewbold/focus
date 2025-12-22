@@ -137,7 +137,7 @@ const AuthScreen = ({ onSignIn }) => {
           WebkitTextFillColor: 'transparent',
           fontFamily: "'Space Grotesk', sans-serif"
         }}>
-          TimeFlow
+          FOCUS
         </h1>
         <p style={{
           color: 'rgba(255,255,255,0.5)',
@@ -1230,7 +1230,7 @@ export default function App() {
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent'
             }}>
-              TimeFlow
+              FOCUS
             </h1>
           </div>
           

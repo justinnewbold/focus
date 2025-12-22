@@ -1,8 +1,8 @@
-# TimeFlow ⏱️
+# FOCUS ⏱️
 
 A beautiful time blocking app with Pomodoro timer, built with React and Supabase.
 
-![TimeFlow](https://img.shields.io/badge/TimeFlow-v1.1.0-FF6B6B)
+![FOCUS](https://img.shields.io/badge/FOCUS-v2.0.0-FF6B6B)
 ![React](https://img.shields.io/badge/React-18.2-61DAFB)
 ![Supabase](https://img.shields.io/badge/Supabase-Postgres-3ECF8E)
 ![Vercel](https://img.shields.io/badge/Deployed-Vercel-000000)
@@ -15,7 +15,10 @@ A beautiful time blocking app with Pomodoro timer, built with React and Supabase
 
 - **🍅 Pomodoro Timer**: 25-minute focus sessions with 5/15-minute breaks
 - **📅 Time Blocking**: Plan your day from 6 AM to 9 PM
-- **📊 Statistics Dashboard**: Track hours planned, focus time, and completed pomodoros
+- **📆 Week View**: Navigate and plan your entire week
+- **🔄 Recurring Tasks**: Set daily, weekday, or weekly recurring blocks
+- **📊 Analytics Dashboard**: Track hours planned, focus time, and completed pomodoros
+- **🔐 User Authentication**: Google OAuth sign-in via Supabase
 - **🔔 Browser Notifications**: Get notified when timers complete
 - **🎨 Beautiful UI**: Modern dark theme with gradient accents
 - **☁️ Cloud Sync**: Data persists with Supabase PostgreSQL
@@ -25,6 +28,7 @@ A beautiful time blocking app with Pomodoro timer, built with React and Supabase
 
 - **Frontend**: React 18, Vite
 - **Database**: Supabase (PostgreSQL)
+- **Auth**: Supabase Auth with Google OAuth
 - **Hosting**: Vercel
 - **Styling**: Inline styles with CSS-in-JS
 
@@ -68,6 +72,7 @@ npm run dev
 | Column | Type | Description |
 |--------|------|-------------|
 | id | BIGSERIAL | Primary key |
+| user_id | UUID | User reference |
 | hour | INTEGER | Hour of the day (0-23) |
 | title | TEXT | Task name |
 | category | TEXT | work, meeting, break, personal, learning, exercise |
@@ -75,11 +80,14 @@ npm run dev
 | pomodoro_count | INTEGER | Completed pomodoros |
 | completed | BOOLEAN | Task completion status |
 | date | DATE | Date of the time block |
+| is_recurring | BOOLEAN | Whether task repeats |
+| recurrence_pattern | TEXT | daily, weekdays, weekly |
 
 ### pomodoro_stats
 | Column | Type | Description |
 |--------|------|-------------|
 | id | BIGSERIAL | Primary key |
+| user_id | UUID | User reference |
 | date | DATE | Unique date |
 | pomodoros_completed | INTEGER | Total pomodoros for the day |
 | focus_minutes | INTEGER | Total focus minutes |
