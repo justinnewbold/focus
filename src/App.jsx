@@ -53,18 +53,17 @@ const requestNotificationPermission = async () => {
 };
 
 // ============================================
-// TIMER PERSISTENCE UTILITIES
+// TIMER PERSISTENCE UTILITIES (Absolute Time Tracking)
 // ============================================
 
 const TIMER_STORAGE_KEY = 'focus_timer_state';
 
 const saveTimerState = (state) => {
   try {
-    const stateWithTimestamp = {
+    localStorage.setItem(TIMER_STORAGE_KEY, JSON.stringify({
       ...state,
       savedAt: Date.now()
-    };
-    localStorage.setItem(TIMER_STORAGE_KEY, JSON.stringify(stateWithTimestamp));
+    }));
   } catch (e) {
     console.error('Failed to save timer state:', e);
   }
@@ -73,8 +72,7 @@ const saveTimerState = (state) => {
 const loadTimerState = () => {
   try {
     const saved = localStorage.getItem(TIMER_STORAGE_KEY);
-    if (!saved) return null;
-    return JSON.parse(saved);
+    return saved ? JSON.parse(saved) : null;
   } catch (e) {
     console.error('Failed to load timer state:', e);
     return null;
@@ -87,6 +85,12 @@ const clearTimerState = () => {
   } catch (e) {
     console.error('Failed to clear timer state:', e);
   }
+};
+
+// Calculate remaining time based on when timer started
+const calculateRemainingTime = (endTime) => {
+  const remaining = Math.max(0, Math.ceil((endTime - Date.now()) / 1000));
+  return remaining;
 };
 
 // ============================================
@@ -244,7 +248,7 @@ const AuthScreen = ({ onSignIn }) => {
 };
 
 // ============================================
-// POMODORO TIMER COMPONENT WITH PERSISTENCE
+// POMODORO TIMER COMPONENT WITH ABSOLUTE TIME TRACKING
 // ============================================
 
 const PomodoroTimer = ({ onComplete, currentTask, preferences }) => {
@@ -254,60 +258,14 @@ const PomodoroTimer = ({ onComplete, currentTask, preferences }) => {
     longBreak: (preferences?.long_break_duration || 15) * 60
   };
 
-  // Initialize state from localStorage if available
-  const initializeState = () => {
-    const saved = loadTimerState();
-    if (saved && saved.isRunning) {
-      // Calculate how much time has passed since the timer was saved
-      const elapsedSeconds = Math.floor((Date.now() - saved.savedAt) / 1000);
-      const adjustedTimeLeft = saved.timeLeft - elapsedSeconds;
-      
-      if (adjustedTimeLeft <= 0) {
-        // Timer would have completed while away
-        return {
-          mode: saved.mode,
-          timeLeft: 0,
-          isRunning: false,
-          pomodorosCompleted: saved.pomodorosCompleted,
-          shouldComplete: true
-        };
-      }
-      
-      return {
-        mode: saved.mode,
-        timeLeft: adjustedTimeLeft,
-        isRunning: true,
-        pomodorosCompleted: saved.pomodorosCompleted,
-        shouldComplete: false
-      };
-    }
-    
-    if (saved) {
-      return {
-        mode: saved.mode || 'work',
-        timeLeft: saved.timeLeft || durations.work,
-        isRunning: false,
-        pomodorosCompleted: saved.pomodorosCompleted || 0,
-        shouldComplete: false
-      };
-    }
-    
-    return {
-      mode: 'work',
-      timeLeft: durations.work,
-      isRunning: false,
-      pomodorosCompleted: 0,
-      shouldComplete: false
-    };
-  };
-
-  const initialState = useRef(initializeState());
-  
-  const [mode, setMode] = useState(initialState.current.mode);
-  const [timeLeft, setTimeLeft] = useState(initialState.current.timeLeft);
-  const [isRunning, setIsRunning] = useState(initialState.current.isRunning);
-  const [pomodorosCompleted, setPomodorosCompleted] = useState(initialState.current.pomodorosCompleted);
+  const [mode, setMode] = useState('work');
+  const [timeLeft, setTimeLeft] = useState(durations.work);
+  const [isRunning, setIsRunning] = useState(false);
+  const [pomodorosCompleted, setPomodorosCompleted] = useState(0);
+  const [endTime, setEndTime] = useState(null); // Absolute end timestamp
   const playSound = useSound();
+  const intervalRef = useRef(null);
+  const hasInitialized = useRef(false);
   
   const modeColors = {
     work: '#FF6B6B',
@@ -321,123 +279,149 @@ const PomodoroTimer = ({ onComplete, currentTask, preferences }) => {
     longBreak: 'LONG BREAK'
   };
 
-  // Handle timer completion that happened while away
+  // Initialize from localStorage on mount
   useEffect(() => {
-    if (initialState.current.shouldComplete) {
-      playSound('complete');
-      if (initialState.current.mode === 'work') {
-        const newCount = initialState.current.pomodorosCompleted + 1;
-        setPomodorosCompleted(newCount);
-        onComplete && onComplete();
-        notify('🍅 Pomodoro Completed!', 'Great work! Your session finished while you were away.');
-        if (newCount % 4 === 0) {
-          setMode('longBreak');
-          setTimeLeft(durations.longBreak);
+    if (hasInitialized.current) return;
+    hasInitialized.current = true;
+    
+    const saved = loadTimerState();
+    if (saved) {
+      setMode(saved.mode || 'work');
+      setPomodorosCompleted(saved.pomodorosCompleted || 0);
+      
+      if (saved.isRunning && saved.endTime) {
+        const remaining = calculateRemainingTime(saved.endTime);
+        if (remaining > 0) {
+          setEndTime(saved.endTime);
+          setTimeLeft(remaining);
+          setIsRunning(true);
         } else {
-          setMode('shortBreak');
-          setTimeLeft(durations.shortBreak);
+          // Timer completed while away
+          handleTimerComplete(saved.mode, saved.pomodorosCompleted);
         }
       } else {
-        notify('⏰ Break Over!', 'Ready to focus again?');
-        setMode('work');
-        setTimeLeft(durations.work);
+        setTimeLeft(saved.timeLeft || durations[saved.mode || 'work']);
       }
-      initialState.current.shouldComplete = false;
     }
+    
+    requestNotificationPermission();
   }, []);
 
-  // Save timer state whenever it changes
+  // Handle timer completion
+  const handleTimerComplete = useCallback((completedMode, currentPomodoros) => {
+    playSound('complete');
+    setIsRunning(false);
+    setEndTime(null);
+    
+    if (completedMode === 'work') {
+      const newCount = currentPomodoros + 1;
+      setPomodorosCompleted(newCount);
+      onComplete && onComplete();
+      notify('🍅 Pomodoro Complete!', `Great work! Time for a ${newCount % 4 === 0 ? 'long' : 'short'} break.`);
+      
+      if (newCount % 4 === 0) {
+        setMode('longBreak');
+        setTimeLeft(durations.longBreak);
+      } else {
+        setMode('shortBreak');
+        setTimeLeft(durations.shortBreak);
+      }
+    } else {
+      notify('⏰ Break Over!', 'Ready to focus again?');
+      setMode('work');
+      setTimeLeft(durations.work);
+    }
+  }, [playSound, onComplete, durations]);
+
+  // Main timer tick using absolute time
+  useEffect(() => {
+    if (isRunning && endTime) {
+      const tick = () => {
+        const remaining = calculateRemainingTime(endTime);
+        setTimeLeft(remaining);
+        
+        if (remaining <= 0) {
+          clearInterval(intervalRef.current);
+          handleTimerComplete(mode, pomodorosCompleted);
+        }
+      };
+      
+      // Tick immediately, then every 100ms for smoother updates
+      tick();
+      intervalRef.current = setInterval(tick, 100);
+      
+      return () => clearInterval(intervalRef.current);
+    }
+  }, [isRunning, endTime, mode, pomodorosCompleted, handleTimerComplete]);
+
+  // Save state whenever it changes
   useEffect(() => {
     saveTimerState({
       mode,
       timeLeft,
       isRunning,
-      pomodorosCompleted
+      pomodorosCompleted,
+      endTime
     });
-  }, [mode, timeLeft, isRunning, pomodorosCompleted]);
+  }, [mode, timeLeft, isRunning, pomodorosCompleted, endTime]);
 
-  // Update document title with timer
+  // Update document title
   useEffect(() => {
     if (isRunning) {
-      document.title = `${formatTime(timeLeft)} - ${modeLabels[mode]} | FOCUS`;
+      document.title = `${formatTime(timeLeft)} - ${modeLabels[mode]} | TimeFlow`;
     } else {
-      document.title = 'FOCUS - Time Blocking App';
+      document.title = 'TimeFlow - Pomodoro Time Blocking';
     }
-    return () => {
-      document.title = 'FOCUS - Time Blocking App';
-    };
+    return () => { document.title = 'TimeFlow - Pomodoro Time Blocking'; };
   }, [timeLeft, isRunning, mode]);
 
-  useEffect(() => {
-    requestNotificationPermission();
-  }, []);
-
-  // Handle visibility change - recalculate time when tab becomes visible
+  // Handle visibility change - sync time when tab becomes visible
   useEffect(() => {
     const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && isRunning) {
-        const saved = loadTimerState();
-        if (saved && saved.isRunning) {
-          const elapsedSeconds = Math.floor((Date.now() - saved.savedAt) / 1000);
-          const adjustedTimeLeft = saved.timeLeft - elapsedSeconds;
-          
-          if (adjustedTimeLeft <= 0) {
-            setTimeLeft(0);
-          } else {
-            setTimeLeft(adjustedTimeLeft);
-          }
+      if (document.visibilityState === 'visible' && isRunning && endTime) {
+        const remaining = calculateRemainingTime(endTime);
+        if (remaining <= 0) {
+          handleTimerComplete(mode, pomodorosCompleted);
+        } else {
+          setTimeLeft(remaining);
         }
       }
     };
 
     document.addEventListener('visibilitychange', handleVisibilityChange);
     return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [isRunning]);
-
-  useEffect(() => {
-    let interval;
-    if (isRunning && timeLeft > 0) {
-      interval = setInterval(() => {
-        setTimeLeft(prev => prev - 1);
-      }, 1000);
-    } else if (timeLeft === 0 && isRunning) {
-      playSound('complete');
-      if (mode === 'work') {
-        const newCount = pomodorosCompleted + 1;
-        setPomodorosCompleted(newCount);
-        onComplete && onComplete();
-        notify('🍅 Pomodoro Complete!', `Great work! Time for a ${newCount % 4 === 0 ? 'long' : 'short'} break.`);
-        if (newCount % 4 === 0) {
-          setMode('longBreak');
-          setTimeLeft(durations.longBreak);
-        } else {
-          setMode('shortBreak');
-          setTimeLeft(durations.shortBreak);
-        }
-      } else {
-        notify('⏰ Break Over!', 'Ready to focus again?');
-        setMode('work');
-        setTimeLeft(durations.work);
-      }
-      setIsRunning(false);
-    }
-    return () => clearInterval(interval);
-  }, [isRunning, timeLeft, mode, pomodorosCompleted, playSound, onComplete, durations]);
+  }, [isRunning, endTime, mode, pomodorosCompleted, handleTimerComplete]);
 
   const toggleTimer = () => {
-    if (!isRunning) playSound('start');
-    setIsRunning(!isRunning);
+    if (!isRunning) {
+      // Starting timer - set absolute end time
+      playSound('start');
+      const newEndTime = Date.now() + (timeLeft * 1000);
+      setEndTime(newEndTime);
+      setIsRunning(true);
+    } else {
+      // Pausing timer - save remaining time
+      clearInterval(intervalRef.current);
+      const remaining = calculateRemainingTime(endTime);
+      setTimeLeft(remaining);
+      setEndTime(null);
+      setIsRunning(false);
+    }
   };
 
   const resetTimer = () => {
+    clearInterval(intervalRef.current);
     setIsRunning(false);
+    setEndTime(null);
     setTimeLeft(durations[mode]);
   };
 
   const switchMode = (newMode) => {
+    clearInterval(intervalRef.current);
     setMode(newMode);
     setTimeLeft(durations[newMode]);
     setIsRunning(false);
+    setEndTime(null);
   };
 
   const progress = ((durations[mode] - timeLeft) / durations[mode]) * 100;
@@ -454,7 +438,7 @@ const PomodoroTimer = ({ onComplete, currentTask, preferences }) => {
       boxShadow: '0 20px 60px rgba(0,0,0,0.4)',
       border: '1px solid rgba(255,255,255,0.05)'
     }}>
-      {/* Persistence indicator */}
+      {/* Status indicator */}
       {isRunning && (
         <div style={{
           fontSize: '11px',
@@ -464,7 +448,8 @@ const PomodoroTimer = ({ onComplete, currentTask, preferences }) => {
           alignItems: 'center',
           gap: '6px'
         }}>
-          <span style={{ color: '#4ECDC4' }}>●</span> Timer persists across tabs
+          <span style={{ color: '#4ECDC4', animation: 'pulse 2s infinite' }}>●</span> 
+          Timer continues in background
         </div>
       )}
 
