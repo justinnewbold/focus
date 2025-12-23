@@ -1,0 +1,52 @@
+{
+  "expo": {
+    "name": "FOCUS",
+    "slug": "focus-app",
+    "version": "3.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "image": "./assets/splash.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0f0f1a"
+    },
+    "assetBundlePatterns": ["**/*"],
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "cloud.newbold.focus",
+      "buildNumber": "1",
+      "infoPlist": {
+        "UIBackgroundModes": ["fetch", "remote-notification"],
+        "NSFaceIDUsageDescription": "Use Face ID to quickly access your FOCUS app",
+        "ITSAppUsesNonExemptEncryption": false
+      },
+      "associatedDomains": ["applinks:focus.newbold.cloud"]
+    },
+    "android": {
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0f0f1a"
+      },
+      "package": "cloud.newbold.focus",
+      "versionCode": 1,
+      "permissions": ["NOTIFICATIONS", "VIBRATE", "WAKE_LOCK", "RECEIVE_BOOT_COMPLETED"],
+      "intentFilters": [{
+        "action": "VIEW",
+        "autoVerify": true,
+        "data": [{ "scheme": "https", "host": "focus.newbold.cloud", "pathPrefix": "/" }],
+        "category": ["BROWSABLE", "DEFAULT"]
+      }]
+    },
+    "web": { "favicon": "./assets/favicon.png", "bundler": "metro" },
+    "plugins": [
+      ["expo-notifications", { "icon": "./assets/notification-icon.png", "color": "#FF6B6B" }],
+      ["expo-build-properties", { "ios": { "deploymentTarget": "14.0" } }]
+    ],
+    "extra": {
+      "supabaseUrl": "https://wektbfkzbxvtxsremnnk.supabase.co",
+      "eas": { "projectId": "focus-app" }
+    },
+    "scheme": "focus"
+  }
+}
