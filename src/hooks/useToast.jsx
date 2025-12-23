@@ -1,4 +1,4 @@
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 
 /**
  * Custom hook for toast notifications
@@ -6,6 +6,15 @@ import { useState, useCallback } from 'react';
  */
 export const useToast = () => {
   const [toasts, setToasts] = useState([]);
+  const timeoutRefs = useRef(new Map());
+
+  // Cleanup all timeouts on unmount
+  useEffect(() => {
+    return () => {
+      timeoutRefs.current.forEach((timeoutId) => clearTimeout(timeoutId));
+      timeoutRefs.current.clear();
+    };
+  }, []);
 
   const addToast = useCallback((message, type = 'info', duration = 4000, action = null) => {
     const id = Date.now() + Math.random();
@@ -20,21 +29,32 @@ export const useToast = () => {
 
     setToasts(prev => [...prev, toast]);
 
-    // Auto-remove after duration
+    // Auto-remove after duration with proper cleanup
     if (duration > 0) {
-      setTimeout(() => {
+      const timeoutId = setTimeout(() => {
         setToasts(prev => prev.filter(t => t.id !== id));
+        timeoutRefs.current.delete(id);
       }, duration);
+      timeoutRefs.current.set(id, timeoutId);
     }
 
     return id;
   }, []);
 
   const removeToast = useCallback((id) => {
+    // Clear the timeout if it exists
+    const timeoutId = timeoutRefs.current.get(id);
+    if (timeoutId) {
+      clearTimeout(timeoutId);
+      timeoutRefs.current.delete(id);
+    }
     setToasts(prev => prev.filter(t => t.id !== id));
   }, []);
 
   const clearToasts = useCallback(() => {
+    // Clear all timeouts
+    timeoutRefs.current.forEach((timeoutId) => clearTimeout(timeoutId));
+    timeoutRefs.current.clear();
     setToasts([]);
   }, []);
 

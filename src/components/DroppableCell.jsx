@@ -9,6 +9,9 @@ const DroppableCell = memo(({ date, hour, children, onCellClick, blocks = [] }) 
   const drag = useDrag();
   const [isOver, setIsOver] = useState(false);
 
+  // Define hasBlocks before using it in handlers
+  const hasBlocks = blocks.length > 0 || (children && React.Children.count(children) > 0);
+
   const handleDragOver = (e) => {
     e.preventDefault();
     setIsOver(true);
@@ -38,8 +41,6 @@ const DroppableCell = memo(({ date, hour, children, onCellClick, blocks = [] }) 
       onCellClick(date, hour);
     }
   };
-
-  const hasBlocks = blocks.length > 0 || (children && React.Children.count(children) > 0);
 
   return (
     <div

@@ -1,6 +1,7 @@
-import React, { useState, useEffect, useRef, useMemo, memo } from 'react';
+import React, { useState, useEffect, useRef, useMemo, memo, forwardRef, useImperativeHandle, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { useSound } from '../hooks/useSound';
+import { usePageVisibility } from '../hooks/usePageVisibility';
 import { formatTime, calculateRemainingTime } from '../utils/dateTime';
 import { timerStorage } from '../utils/storage';
 import { notify } from '../utils/notifications';
@@ -8,8 +9,9 @@ import { POMODORO_DEFAULTS } from '../constants';
 
 /**
  * Pomodoro Timer component with focus/break modes
+ * Uses forwardRef to expose toggleTimer and resetTimer methods
  */
-const PomodoroTimer = memo(({ onComplete, currentTask, preferences, onToggle, onReset }) => {
+const PomodoroTimer = memo(forwardRef(({ onComplete, currentTask, preferences, onToggle, onReset }, ref) => {
   const defaultDuration = (preferences?.focus_duration || POMODORO_DEFAULTS.focus) * 60;
 
   const [timeLeft, setTimeLeft] = useState(defaultDuration);
@@ -20,6 +22,32 @@ const PomodoroTimer = memo(({ onComplete, currentTask, preferences, onToggle, on
 
   const { playSound, startAlarm, stopAlarm } = useSound();
   const intervalRef = useRef(null);
+
+  // Sync timer when page becomes visible (e.g., returning from another tab)
+  const handlePageVisible = useCallback(() => {
+    if (isRunning && endTime) {
+      const remaining = calculateRemainingTime(endTime);
+      if (remaining <= 0) {
+        // Timer completed while page was hidden
+        clearInterval(intervalRef.current);
+        setTimeLeft(0);
+        setIsRunning(false);
+        setEndTime(null);
+        setIsAlarming(true);
+        startAlarm();
+        notify('Timer Complete!', mode === 'focus' ? 'Time for a break!' : 'Ready to focus!');
+        if (mode === 'focus') {
+          onComplete?.();
+        }
+        timerStorage.clear();
+      } else {
+        // Sync the displayed time
+        setTimeLeft(remaining);
+      }
+    }
+  }, [isRunning, endTime, mode, onComplete, startAlarm]);
+
+  usePageVisibility({ onVisible: handlePageVisible });
 
   const durations = useMemo(() => ({
     focus: (preferences?.focus_duration || POMODORO_DEFAULTS.focus) * 60,
@@ -144,12 +172,11 @@ const PomodoroTimer = memo(({ onComplete, currentTask, preferences, onToggle, on
     document.title = 'FOCUS';
   };
 
-  // Expose methods for keyboard shortcuts
-  React.useImperativeHandle(
-    React.useRef({ toggleTimer, resetTimer }),
-    () => ({ toggleTimer, resetTimer }),
-    [toggleTimer, resetTimer]
-  );
+  // Expose methods for keyboard shortcuts via ref
+  useImperativeHandle(ref, () => ({
+    toggleTimer,
+    resetTimer
+  }), [toggleTimer, resetTimer]);
 
   const progress = 1 - timeLeft / durations[mode];
   const circumference = 2 * Math.PI * 90;
@@ -382,7 +409,7 @@ const PomodoroTimer = memo(({ onComplete, currentTask, preferences, onToggle, on
       </div>
     </div>
   );
-});
+}));
 
 PomodoroTimer.displayName = 'PomodoroTimer';
 

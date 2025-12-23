@@ -19,7 +19,7 @@ const EditBlockModal = memo(({ block, onUpdate, onClose }) => {
   const [hour, setHour] = useState(block.hour);
   const [startMinute, setStartMinute] = useState(block.start_minute || 0);
   const [durationMinutes, setDurationMinutes] = useState(block.duration_minutes || 60);
-  const [customTimer, setCustomTimer] = useState(block.timer_duration > 0);
+  const [customTimer, setCustomTimer] = useState(block.timer_duration != null && block.timer_duration > 0);
   const [timerDuration, setTimerDuration] = useState(block.timer_duration || 25);
   const [errors, setErrors] = useState([]);
 
