@@ -1127,6 +1127,381 @@ const EditBlockModal = ({ block, onUpdate, onClose }) => {
 };
 
 // ============================================
+// TIMER SETTINGS MODAL
+// ============================================
+
+const TimerSettingsModal = ({ preferences, onSave, onClose }) => {
+  const [workDuration, setWorkDuration] = useState(preferences?.work_duration || 25);
+  const [shortBreak, setShortBreak] = useState(preferences?.short_break || 5);
+  const [longBreak, setLongBreak] = useState(preferences?.long_break || 15);
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Preset timer configurations
+  const presets = [
+    { name: 'Classic', work: 25, short: 5, long: 15, icon: '🍅' },
+    { name: 'Quick Focus', work: 15, short: 3, long: 10, icon: '⚡' },
+    { name: 'Deep Work', work: 50, short: 10, long: 30, icon: '🧠' },
+    { name: 'Ultradian', work: 90, short: 20, long: 30, icon: '🌊' },
+  ];
+
+  const handlePreset = (preset) => {
+    setWorkDuration(preset.work);
+    setShortBreak(preset.short);
+    setLongBreak(preset.long);
+  };
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    await onSave({
+      work_duration: workDuration,
+      short_break: shortBreak,
+      long_break: longBreak
+    });
+    setIsSaving(false);
+    onClose();
+  };
+
+  const DurationInput = ({ label, value, onChange, min = 1, max = 120, color }) => (
+    <div style={{ marginBottom: '20px' }}>
+      <label style={{
+        display: 'flex',
+        justifyContent: 'space-between',
+        alignItems: 'center',
+        marginBottom: '10px',
+        color: 'rgba(255,255,255,0.7)',
+        fontSize: '14px',
+        fontFamily: "'Space Grotesk', sans-serif"
+      }}>
+        <span>{label}</span>
+        <span style={{
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: '18px',
+          fontWeight: '700',
+          color: color
+        }}>
+          {value} min
+        </span>
+      </label>
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+        <button
+          onClick={() => onChange(Math.max(min, value - 5))}
+          style={{
+            width: '40px',
+            height: '40px',
+            borderRadius: '10px',
+            border: 'none',
+            background: 'rgba(255,255,255,0.1)',
+            color: '#fff',
+            fontSize: '18px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          −
+        </button>
+        <input
+          type="range"
+          min={min}
+          max={max}
+          value={value}
+          onChange={(e) => onChange(parseInt(e.target.value))}
+          style={{
+            flex: 1,
+            height: '8px',
+            borderRadius: '4px',
+            appearance: 'none',
+            background: `linear-gradient(to right, ${color} 0%, ${color} ${(value - min) / (max - min) * 100}%, rgba(255,255,255,0.1) ${(value - min) / (max - min) * 100}%, rgba(255,255,255,0.1) 100%)`,
+            cursor: 'pointer'
+          }}
+        />
+        <button
+          onClick={() => onChange(Math.min(max, value + 5))}
+          style={{
+            width: '40px',
+            height: '40px',
+            borderRadius: '10px',
+            border: 'none',
+            background: 'rgba(255,255,255,0.1)',
+            color: '#fff',
+            fontSize: '18px',
+            cursor: 'pointer',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center'
+          }}
+        >
+          +
+        </button>
+      </div>
+    </div>
+  );
+
+  return (
+    <div 
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.7)',
+        backdropFilter: 'blur(8px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+        padding: '20px'
+      }}
+      onClick={onClose}
+    >
+      <div 
+        style={{
+          background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+          borderRadius: '24px',
+          padding: '32px',
+          width: '100%',
+          maxWidth: '480px',
+          border: '1px solid rgba(255,255,255,0.08)',
+          maxHeight: '90vh',
+          overflowY: 'auto'
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={{
+          display: 'flex',
+          justifyContent: 'space-between',
+          alignItems: 'center',
+          marginBottom: '24px'
+        }}>
+          <h2 style={{
+            margin: 0,
+            fontSize: '24px',
+            fontWeight: '700',
+            color: '#fff',
+            fontFamily: "'Space Grotesk', sans-serif",
+            display: 'flex',
+            alignItems: 'center',
+            gap: '10px'
+          }}>
+            ⚙️ Timer Settings
+          </h2>
+          <button
+            onClick={onClose}
+            style={{
+              background: 'rgba(255,255,255,0.1)',
+              border: 'none',
+              borderRadius: '8px',
+              padding: '8px 12px',
+              color: 'rgba(255,255,255,0.6)',
+              fontSize: '16px',
+              cursor: 'pointer'
+            }}
+          >
+            ✕
+          </button>
+        </div>
+
+        {/* Presets */}
+        <div style={{ marginBottom: '28px' }}>
+          <label style={{
+            display: 'block',
+            marginBottom: '12px',
+            color: 'rgba(255,255,255,0.6)',
+            fontSize: '13px',
+            fontFamily: "'Space Grotesk', sans-serif",
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px'
+          }}>
+            Quick Presets
+          </label>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>
+            {presets.map((preset) => (
+              <button
+                key={preset.name}
+                onClick={() => handlePreset(preset)}
+                style={{
+                  padding: '14px 16px',
+                  borderRadius: '12px',
+                  border: workDuration === preset.work && shortBreak === preset.short
+                    ? '2px solid #FF6B6B'
+                    : '1px solid rgba(255,255,255,0.1)',
+                  background: workDuration === preset.work && shortBreak === preset.short
+                    ? 'rgba(255,107,107,0.15)'
+                    : 'rgba(255,255,255,0.03)',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'all 0.2s ease'
+                }}
+              >
+                <div style={{
+                  fontSize: '20px',
+                  marginBottom: '4px'
+                }}>
+                  {preset.icon}
+                </div>
+                <div style={{
+                  color: '#fff',
+                  fontSize: '14px',
+                  fontWeight: '600',
+                  fontFamily: "'Space Grotesk', sans-serif"
+                }}>
+                  {preset.name}
+                </div>
+                <div style={{
+                  color: 'rgba(255,255,255,0.5)',
+                  fontSize: '11px',
+                  fontFamily: "'JetBrains Mono', monospace",
+                  marginTop: '4px'
+                }}>
+                  {preset.work}/{preset.short}/{preset.long} min
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Custom Durations */}
+        <div style={{ marginBottom: '28px' }}>
+          <label style={{
+            display: 'block',
+            marginBottom: '16px',
+            color: 'rgba(255,255,255,0.6)',
+            fontSize: '13px',
+            fontFamily: "'Space Grotesk', sans-serif",
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px'
+          }}>
+            Custom Durations
+          </label>
+          
+          <DurationInput 
+            label="🍅 Focus Duration" 
+            value={workDuration} 
+            onChange={setWorkDuration}
+            min={5}
+            max={120}
+            color="#FF6B6B"
+          />
+          
+          <DurationInput 
+            label="☕ Short Break" 
+            value={shortBreak} 
+            onChange={setShortBreak}
+            min={1}
+            max={30}
+            color="#4ECDC4"
+          />
+          
+          <DurationInput 
+            label="🌴 Long Break" 
+            value={longBreak} 
+            onChange={setLongBreak}
+            min={5}
+            max={60}
+            color="#845EC2"
+          />
+        </div>
+
+        {/* Summary */}
+        <div style={{
+          background: 'rgba(255,255,255,0.03)',
+          borderRadius: '12px',
+          padding: '16px',
+          marginBottom: '24px'
+        }}>
+          <div style={{
+            display: 'flex',
+            justifyContent: 'space-around',
+            textAlign: 'center'
+          }}>
+            <div>
+              <div style={{ 
+                fontSize: '24px', 
+                fontWeight: '700', 
+                color: '#FF6B6B',
+                fontFamily: "'JetBrains Mono', monospace"
+              }}>
+                {workDuration}
+              </div>
+              <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>
+                FOCUS
+              </div>
+            </div>
+            <div style={{ color: 'rgba(255,255,255,0.2)', alignSelf: 'center' }}>→</div>
+            <div>
+              <div style={{ 
+                fontSize: '24px', 
+                fontWeight: '700', 
+                color: '#4ECDC4',
+                fontFamily: "'JetBrains Mono', monospace"
+              }}>
+                {shortBreak}
+              </div>
+              <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>
+                SHORT
+              </div>
+            </div>
+            <div style={{ color: 'rgba(255,255,255,0.2)', alignSelf: 'center' }}>→</div>
+            <div>
+              <div style={{ 
+                fontSize: '24px', 
+                fontWeight: '700', 
+                color: '#845EC2',
+                fontFamily: "'JetBrains Mono', monospace"
+              }}>
+                {longBreak}
+              </div>
+              <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>
+                LONG
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Buttons */}
+        <div style={{ display: 'flex', gap: '12px' }}>
+          <button
+            onClick={onClose}
+            style={{
+              flex: 1,
+              padding: '14px',
+              borderRadius: '12px',
+              border: '1px solid rgba(255,255,255,0.2)',
+              background: 'transparent',
+              color: 'rgba(255,255,255,0.7)',
+              fontSize: '15px',
+              fontWeight: '600',
+              cursor: 'pointer',
+              fontFamily: "'Space Grotesk', sans-serif"
+            }}
+          >
+            Cancel
+          </button>
+          <button
+            onClick={handleSave}
+            disabled={isSaving}
+            style={{
+              flex: 1,
+              padding: '14px',
+              borderRadius: '12px',
+              border: 'none',
+              background: 'linear-gradient(135deg, #FF6B6B 0%, #FF8E8E 100%)',
+              color: '#fff',
+              fontSize: '15px',
+              fontWeight: '600',
+              cursor: isSaving ? 'wait' : 'pointer',
+              fontFamily: "'Space Grotesk', sans-serif",
+              opacity: isSaving ? 0.7 : 1
+            }}
+          >
+            {isSaving ? 'Saving...' : 'Save Settings'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ============================================
 // ADD BLOCK MODAL
 // ============================================
 
@@ -1550,6 +1925,7 @@ export default function App() {
   const [activeBlockId, setActiveBlockId] = useState(null);
   const [isSyncing, setIsSyncing] = useState(false);
   const [editingBlock, setEditingBlock] = useState(null);
+  const [showTimerSettings, setShowTimerSettings] = useState(false);
 
   const today = new Date().toISOString().split('T')[0];
   const weekDates = useMemo(() => getWeekDates(selectedDate), [selectedDate]);
@@ -1679,6 +2055,19 @@ export default function App() {
     const current = new Date(selectedDate);
     current.setDate(current.getDate() + (direction * 7));
     setSelectedDate(current.toISOString().split('T')[0]);
+  };
+
+  const handleSavePreferences = async (newPrefs) => {
+    if (!user) return;
+    setIsSyncing(true);
+    
+    // Update local state immediately
+    setPreferences(prev => ({ ...prev, ...newPrefs }));
+    
+    // Save to database
+    await db.upsertPreferences(user.id, newPrefs);
+    
+    setIsSyncing(false);
   };
 
   const handleCellClick = (date, hour) => {
@@ -2112,11 +2501,36 @@ export default function App() {
 
             {/* Right Column - Timer & Analytics */}
             <div className="right-column" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <PomodoroTimer 
-                onComplete={handlePomodoroComplete}
-                currentTask={activeBlock?.title}
-                preferences={preferences}
-              />
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={() => setShowTimerSettings(true)}
+                  style={{
+                    position: 'absolute',
+                    top: '16px',
+                    right: '16px',
+                    background: 'rgba(255,255,255,0.1)',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '8px 12px',
+                    cursor: 'pointer',
+                    color: 'rgba(255,255,255,0.6)',
+                    fontSize: '14px',
+                    zIndex: 10,
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    transition: 'all 0.2s ease'
+                  }}
+                  title="Timer Settings"
+                >
+                  ⚙️
+                </button>
+                <PomodoroTimer 
+                  onComplete={handlePomodoroComplete}
+                  currentTask={activeBlock?.title}
+                  preferences={preferences}
+                />
+              </div>
               
               <AnalyticsDashboard 
                 stats={stats}
@@ -2143,6 +2557,15 @@ export default function App() {
             block={editingBlock}
             onUpdate={handleUpdateBlock}
             onClose={() => setEditingBlock(null)}
+          />
+        )}
+
+        {/* Timer Settings Modal */}
+        {showTimerSettings && (
+          <TimerSettingsModal
+            preferences={preferences}
+            onSave={handleSavePreferences}
+            onClose={() => setShowTimerSettings(false)}
           />
         )}
 
@@ -2178,3 +2601,4 @@ export default function App() {
     </DragProvider>
   );
 }
+
