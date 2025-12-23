@@ -13,6 +13,12 @@ const formatHour = (hour) => {
   return `${h}:00 ${ampm}`;
 };
 
+const formatMinuteTime = (hour, minute) => {
+  const h = hour % 12 || 12;
+  const ampm = hour < 12 ? 'AM' : 'PM';
+  return `${h}:${minute.toString().padStart(2, '0')} ${ampm}`;
+};
+
 const getWeekDates = (date) => {
   const d = new Date(date);
   const day = d.getDay();
@@ -117,8 +123,13 @@ const AuthScreen = () => {
 
 const categoryColors = { work: { bg: '#FF6B6B', text: '#fff' }, meeting: { bg: '#845EC2', text: '#fff' }, break: { bg: '#4ECDC4', text: '#fff' }, personal: { bg: '#FFC75F', text: '#1a1a2e' }, learning: { bg: '#00C9A7', text: '#fff' }, exercise: { bg: '#FF9671', text: '#fff' } };
 
-const PomodoroTimer = ({ onComplete, currentTask, preferences }) => {
-  const durations = useMemo(() => ({ work: (preferences?.work_duration || 25) * 60, shortBreak: (preferences?.short_break || 5) * 60, longBreak: (preferences?.long_break || 15) * 60 }), [preferences]);
+const PomodoroTimer = ({ onComplete, currentTask, preferences, activeBlock, onAddTime }) => {
+  const durations = useMemo(() => ({ 
+    work: activeBlock?.timer_duration ? activeBlock.timer_duration * 60 : (preferences?.work_duration || 25) * 60, 
+    shortBreak: (preferences?.short_break || 5) * 60, 
+    longBreak: (preferences?.long_break || 15) * 60 
+  }), [preferences, activeBlock]);
+  
   const modeLabels = { work: 'FOCUS', shortBreak: 'SHORT', longBreak: 'LONG' };
   const modeColors = { work: '#FF6B6B', shortBreak: '#4ECDC4', longBreak: '#845EC2' };
   const [mode, setMode] = useState('work');
@@ -127,8 +138,17 @@ const PomodoroTimer = ({ onComplete, currentTask, preferences }) => {
   const [pomodorosCompleted, setPomodorosCompleted] = useState(0);
   const [endTime, setEndTime] = useState(null);
   const [isAlarming, setIsAlarming] = useState(false);
+  const [totalDuration, setTotalDuration] = useState(durations.work);
   const intervalRef = useRef(null);
   const { playSound, startAlarm, stopAlarm } = useSound();
+
+  useEffect(() => {
+    if (!isRunning && !isAlarming) {
+      const newDuration = activeBlock?.timer_duration ? activeBlock.timer_duration * 60 : durations.work;
+      setTimeLeft(newDuration);
+      setTotalDuration(newDuration);
+    }
+  }, [activeBlock, durations.work, isRunning, isAlarming]);
 
   useEffect(() => {
     if (isAlarming) document.title = "⏰ TIME'S UP! - FOCUS";
@@ -142,16 +162,17 @@ const PomodoroTimer = ({ onComplete, currentTask, preferences }) => {
     if (savedState) {
       setMode(savedState.mode || 'work');
       setPomodorosCompleted(savedState.pomodorosCompleted || 0);
+      setTotalDuration(savedState.totalDuration || durations.work);
       if (savedState.isRunning && savedState.endTime) {
         const remaining = calculateRemainingTime(savedState.endTime);
         if (remaining > 0) { setEndTime(savedState.endTime); setTimeLeft(remaining); setIsRunning(true); }
-        else { setTimeLeft(durations[savedState.mode] || durations.work); }
+        else { setTimeLeft(savedState.totalDuration || durations.work); }
       } else { setTimeLeft(savedState.timeLeft || durations[savedState.mode] || durations.work); }
     }
     requestNotificationPermission();
   }, []);
 
-  useEffect(() => { saveTimerState({ mode, timeLeft, isRunning, pomodorosCompleted, endTime }); }, [mode, timeLeft, isRunning, pomodorosCompleted, endTime]);
+  useEffect(() => { saveTimerState({ mode, timeLeft, isRunning, pomodorosCompleted, endTime, totalDuration }); }, [mode, timeLeft, isRunning, pomodorosCompleted, endTime, totalDuration]);
 
   useEffect(() => {
     if (isRunning && endTime) {
@@ -172,17 +193,96 @@ const PomodoroTimer = ({ onComplete, currentTask, preferences }) => {
     return () => clearInterval(intervalRef.current);
   }, [isRunning, endTime, mode, startAlarm, onComplete]);
 
-  const acknowledgeAlarm = () => { stopAlarm(); setIsAlarming(false); if (mode === 'work') { setMode('shortBreak'); setTimeLeft(durations.shortBreak); } else { setMode('work'); setTimeLeft(durations.work); } };
-  useEffect(() => { if (!isRunning && !isAlarming) setTimeLeft(durations[mode]); }, [durations, mode, isRunning, isAlarming]);
-  const toggleTimer = () => { if (!isRunning) { playSound('start'); setEndTime(Date.now() + (timeLeft * 1000)); setIsRunning(true); } else { clearInterval(intervalRef.current); setTimeLeft(calculateRemainingTime(endTime)); setEndTime(null); setIsRunning(false); } };
-  const resetTimer = () => { clearInterval(intervalRef.current); stopAlarm(); setIsAlarming(false); setIsRunning(false); setEndTime(null); setTimeLeft(durations[mode]); };
-  const switchMode = (newMode) => { clearInterval(intervalRef.current); stopAlarm(); setIsAlarming(false); setMode(newMode); setTimeLeft(durations[newMode]); setIsRunning(false); setEndTime(null); };
-  const progress = ((durations[mode] - timeLeft) / durations[mode]) * 100;
+  const addFiveMinutes = () => {
+    stopAlarm();
+    setIsAlarming(false);
+    const newTime = 5 * 60;
+    setTimeLeft(newTime);
+    setTotalDuration(newTime);
+    setEndTime(Date.now() + (newTime * 1000));
+    setIsRunning(true);
+    playSound('start');
+    onAddTime?.(5);
+  };
+
+  const acknowledgeAlarm = () => { 
+    stopAlarm(); 
+    setIsAlarming(false); 
+    if (mode === 'work') { 
+      setMode('shortBreak'); 
+      setTimeLeft(durations.shortBreak); 
+      setTotalDuration(durations.shortBreak);
+    } else { 
+      setMode('work'); 
+      const newDuration = activeBlock?.timer_duration ? activeBlock.timer_duration * 60 : durations.work;
+      setTimeLeft(newDuration); 
+      setTotalDuration(newDuration);
+    } 
+  };
+  
+  useEffect(() => { 
+    if (!isRunning && !isAlarming) {
+      const newDuration = mode === 'work' 
+        ? (activeBlock?.timer_duration ? activeBlock.timer_duration * 60 : durations.work)
+        : durations[mode];
+      setTimeLeft(newDuration);
+      setTotalDuration(newDuration);
+    }
+  }, [durations, mode, isRunning, isAlarming, activeBlock]);
+  
+  const toggleTimer = () => { 
+    if (!isRunning) { 
+      playSound('start'); 
+      setEndTime(Date.now() + (timeLeft * 1000)); 
+      setIsRunning(true); 
+    } else { 
+      clearInterval(intervalRef.current); 
+      setTimeLeft(calculateRemainingTime(endTime)); 
+      setEndTime(null); 
+      setIsRunning(false); 
+    } 
+  };
+  
+  const resetTimer = () => { 
+    clearInterval(intervalRef.current); 
+    stopAlarm(); 
+    setIsAlarming(false); 
+    setIsRunning(false); 
+    setEndTime(null); 
+    const newDuration = mode === 'work' 
+      ? (activeBlock?.timer_duration ? activeBlock.timer_duration * 60 : durations.work)
+      : durations[mode];
+    setTimeLeft(newDuration);
+    setTotalDuration(newDuration);
+  };
+  
+  const switchMode = (newMode) => { 
+    clearInterval(intervalRef.current); 
+    stopAlarm(); 
+    setIsAlarming(false); 
+    setMode(newMode); 
+    const newDuration = newMode === 'work' 
+      ? (activeBlock?.timer_duration ? activeBlock.timer_duration * 60 : durations.work)
+      : durations[newMode];
+    setTimeLeft(newDuration);
+    setTotalDuration(newDuration);
+    setIsRunning(false); 
+    setEndTime(null); 
+  };
+  
+  const progress = ((totalDuration - timeLeft) / totalDuration) * 100;
 
   return (
     <div className="timer-container" style={{ background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)', borderRadius: '24px', padding: '32px', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '24px', boxShadow: '0 20px 60px rgba(0,0,0,0.4)', border: '1px solid rgba(255,255,255,0.05)' }}>
       {isAlarming && <div style={{ fontSize: '13px', color: '#FF6B6B', fontFamily: "'JetBrains Mono', monospace", display: 'flex', alignItems: 'center', gap: '6px', fontWeight: '600' }}><span style={{ animation: 'pulse 0.5s infinite' }}>🔔</span> {mode === 'work' ? 'Focus session complete!' : 'Break is over!'}</div>}
       {isRunning && !isAlarming && <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', fontFamily: "'JetBrains Mono', monospace", display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ color: '#4ECDC4', animation: 'pulse 2s infinite' }}>●</span> Timer continues in background</div>}
+      
+      {activeBlock?.timer_duration && mode === 'work' && !isAlarming && (
+        <div style={{ fontSize: '11px', color: '#FFC75F', fontFamily: "'JetBrains Mono', monospace", background: 'rgba(255,199,95,0.1)', padding: '4px 12px', borderRadius: '12px' }}>
+          ⏱️ Custom: {activeBlock.timer_duration} min
+        </div>
+      )}
+      
       <div style={{ display: 'flex', gap: '8px', background: 'rgba(0,0,0,0.3)', padding: '6px', borderRadius: '12px' }}>
         {Object.keys(durations).map((m) => (<button key={m} onClick={() => switchMode(m)} style={{ padding: '10px 20px', border: 'none', borderRadius: '8px', cursor: 'pointer', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', fontWeight: '600', background: mode === m ? modeColors[m] : 'transparent', color: mode === m ? '#fff' : 'rgba(255,255,255,0.5)' }}>{modeLabels[m]}</button>))}
       </div>
@@ -196,8 +296,20 @@ const PomodoroTimer = ({ onComplete, currentTask, preferences }) => {
           {currentTask && <div style={{ fontSize: '12px', color: 'rgba(255,255,255,0.6)', marginTop: '4px', maxWidth: '140px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{currentTask}</div>}
         </div>
       </div>
-      <div style={{ display: 'flex', gap: '16px' }}>
-        {isAlarming ? (<button onClick={acknowledgeAlarm} style={{ padding: '14px 32px', border: 'none', borderRadius: '12px', cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif", fontSize: '16px', fontWeight: '700', letterSpacing: '2px', background: 'linear-gradient(135deg, #FF6B6B 0%, #ff4757 100%)', color: '#fff', boxShadow: '0 10px 30px rgba(255, 107, 107, 0.5)', animation: 'pulse 1s infinite' }}>🔔 STOP ALARM</button>) : (<><button onClick={toggleTimer} style={{ width: '100px', padding: '12px 24px', border: 'none', borderRadius: '12px', cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif", fontSize: '14px', fontWeight: '700', letterSpacing: '2px', background: isRunning ? 'rgba(255,255,255,0.1)' : `linear-gradient(135deg, ${modeColors[mode]} 0%, ${modeColors[mode]}cc 100%)`, color: '#fff', boxShadow: isRunning ? 'none' : `0 10px 30px ${modeColors[mode]}40` }}>{isRunning ? 'PAUSE' : 'START'}</button><button onClick={resetTimer} style={{ padding: '12px 18px', border: '2px solid rgba(255,255,255,0.2)', borderRadius: '12px', cursor: 'pointer', fontSize: '16px', background: 'transparent', color: 'rgba(255,255,255,0.7)' }}>↺</button></>)}
+      <div style={{ display: 'flex', gap: '12px', flexWrap: 'wrap', justifyContent: 'center' }}>
+        {isAlarming ? (
+          <>
+            <button onClick={addFiveMinutes} style={{ padding: '14px 24px', border: 'none', borderRadius: '12px', cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif", fontSize: '15px', fontWeight: '700', background: 'linear-gradient(135deg, #4ECDC4 0%, #45B7D1 100%)', color: '#fff', boxShadow: '0 10px 30px rgba(78, 205, 196, 0.4)', display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <span style={{ fontSize: '18px' }}>+</span> 5 min
+            </button>
+            <button onClick={acknowledgeAlarm} style={{ padding: '14px 24px', border: 'none', borderRadius: '12px', cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif", fontSize: '15px', fontWeight: '700', background: 'linear-gradient(135deg, #FF6B6B 0%, #ff4757 100%)', color: '#fff', boxShadow: '0 10px 30px rgba(255, 107, 107, 0.5)', animation: 'pulse 1s infinite' }}>🔔 Done</button>
+          </>
+        ) : (
+          <>
+            <button onClick={toggleTimer} style={{ width: '100px', padding: '12px 24px', border: 'none', borderRadius: '12px', cursor: 'pointer', fontFamily: "'Space Grotesk', sans-serif", fontSize: '14px', fontWeight: '700', letterSpacing: '2px', background: isRunning ? 'rgba(255,255,255,0.1)' : `linear-gradient(135deg, ${modeColors[mode]} 0%, ${modeColors[mode]}cc 100%)`, color: '#fff', boxShadow: isRunning ? 'none' : `0 10px 30px ${modeColors[mode]}40` }}>{isRunning ? 'PAUSE' : 'START'}</button>
+            <button onClick={resetTimer} style={{ padding: '12px 18px', border: '2px solid rgba(255,255,255,0.2)', borderRadius: '12px', cursor: 'pointer', fontSize: '16px', background: 'transparent', color: 'rgba(255,255,255,0.7)' }}>↺</button>
+          </>
+        )}
       </div>
       <div style={{ display: 'flex', gap: '8px', alignItems: 'center' }}>
         {[...Array(4)].map((_, i) => <div key={i} style={{ width: '12px', height: '12px', borderRadius: '50%', background: i < (pomodorosCompleted % 4) ? modeColors.work : 'rgba(255,255,255,0.1)', border: `2px solid ${i < (pomodorosCompleted % 4) ? modeColors.work : 'rgba(255,255,255,0.2)'}` }} />)}
@@ -207,7 +319,7 @@ const PomodoroTimer = ({ onComplete, currentTask, preferences }) => {
   );
 };
 
-const TimeBlock = ({ block, onUpdate, onDelete, isActive, isCompact, onEdit }) => {
+const TimeBlock = ({ block, onUpdate, onDelete, isActive, isCompact, onEdit, onStartTimer }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState(block.title);
   const dragContext = useDrag();
@@ -219,65 +331,158 @@ const TimeBlock = ({ block, onUpdate, onDelete, isActive, isCompact, onEdit }) =
   const handleDragEnd = () => { dragContext?.setDraggedBlock(null); if (blockRef.current) blockRef.current.style.opacity = '1'; };
   const handleDoubleClick = (e) => { e.stopPropagation(); if (onEdit) onEdit(block); };
 
+  const getDurationDisplay = () => {
+    if (block.duration_minutes) {
+      if (block.duration_minutes >= 60) {
+        const hours = Math.floor(block.duration_minutes / 60);
+        const mins = block.duration_minutes % 60;
+        return mins > 0 ? `${hours}h ${mins}m` : `${hours}h`;
+      }
+      return `${block.duration_minutes}m`;
+    }
+    return '1h';
+  };
+
+  const getTimeRange = () => {
+    const startMinute = block.start_minute || 0;
+    const durationMins = block.duration_minutes || 60;
+    const endMinute = startMinute + durationMins;
+    const endHour = block.hour + Math.floor(endMinute / 60);
+    const endMin = endMinute % 60;
+    return `${formatMinuteTime(block.hour, startMinute)} - ${formatMinuteTime(endHour, endMin)}`;
+  };
+
   if (isCompact) {
     return (
-      <div ref={blockRef} draggable onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDoubleClick={handleDoubleClick} style={{ background: block.completed ? 'rgba(78,205,196,0.2)' : `${colors.bg}20`, borderRadius: '8px', padding: '8px 12px', borderLeft: `3px solid ${block.completed ? '#4ECDC4' : colors.bg}`, opacity: block.completed ? 0.7 : 1, cursor: 'grab' }}>
-        <div style={{ fontSize: '12px', fontWeight: '600', color: block.completed ? '#4ECDC4' : '#fff', textDecoration: block.completed ? 'line-through' : 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: '6px' }}><span style={{ cursor: 'grab', opacity: 0.5 }}>⋮⋮</span>{block.title || 'Untitled'}</div>
-        <div style={{ fontSize: '10px', color: 'rgba(255,255,255,0.5)', marginTop: '2px' }}>{formatHour(block.hour)}</div>
+      <div ref={blockRef} draggable onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDoubleClick={handleDoubleClick} style={{ background: block.completed ? 'rgba(78,205,196,0.2)' : `${colors.bg}20`, borderRadius: '8px', padding: '6px 10px', borderLeft: `3px solid ${block.completed ? '#4ECDC4' : colors.bg}`, opacity: block.completed ? 0.7 : 1, cursor: 'grab', marginBottom: '4px' }}>
+        <div style={{ fontSize: '11px', fontWeight: '600', color: block.completed ? '#4ECDC4' : '#fff', textDecoration: block.completed ? 'line-through' : 'none', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', display: 'flex', alignItems: 'center', gap: '4px' }}>
+          <span style={{ cursor: 'grab', opacity: 0.5, fontSize: '10px' }}>⋮⋮</span>
+          {block.title || 'Untitled'}
+        </div>
+        <div style={{ display: 'flex', gap: '6px', alignItems: 'center', marginTop: '2px' }}>
+          <span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.4)', fontFamily: "'JetBrains Mono', monospace" }}>{getDurationDisplay()}</span>
+          {block.timer_duration && <span style={{ fontSize: '9px', color: '#FFC75F' }}>⏱️{block.timer_duration}m</span>}
+        </div>
       </div>
     );
   }
 
   return (
-    <div ref={blockRef} draggable onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDoubleClick={handleDoubleClick} style={{ background: isActive ? `linear-gradient(135deg, ${colors.bg} 0%, ${colors.bg}dd 100%)` : block.completed ? 'rgba(78,205,196,0.1)' : 'rgba(255,255,255,0.03)', borderRadius: '16px', padding: '16px 20px', marginBottom: '10px', border: isActive ? 'none' : `1px solid ${block.completed ? 'rgba(78,205,196,0.3)' : 'rgba(255,255,255,0.08)'}`, cursor: 'grab', opacity: block.completed && !isActive ? 0.7 : 1 }}>
+    <div ref={blockRef} draggable onDragStart={handleDragStart} onDragEnd={handleDragEnd} onDoubleClick={handleDoubleClick} style={{ background: isActive ? `linear-gradient(135deg, ${colors.bg} 0%, ${colors.bg}dd 100%)` : block.completed ? 'rgba(78,205,196,0.1)' : 'rgba(255,255,255,0.03)', borderRadius: '16px', padding: '14px 18px', marginBottom: '8px', border: isActive ? 'none' : `1px solid ${block.completed ? 'rgba(78,205,196,0.3)' : 'rgba(255,255,255,0.08)'}`, cursor: 'grab', opacity: block.completed && !isActive ? 0.7 : 1 }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
-        <div style={{ flex: 1, display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.3)', cursor: 'grab', padding: '4px', marginRight: '-4px' }}><span style={{ fontSize: '14px', lineHeight: 1 }}>⋮⋮</span></div>
-          <button onClick={handleComplete} style={{ width: '22px', height: '22px', borderRadius: '6px', border: `2px solid ${block.completed ? '#4ECDC4' : 'rgba(255,255,255,0.3)'}`, background: block.completed ? '#4ECDC4' : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '2px' }}>{block.completed && <span style={{ color: '#fff', fontSize: '12px' }}>✓</span>}</button>
+        <div style={{ flex: 1, display: 'flex', alignItems: 'flex-start', gap: '10px' }}>
+          <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: 'rgba(255,255,255,0.3)', cursor: 'grab', padding: '2px', marginRight: '-4px' }}><span style={{ fontSize: '12px', lineHeight: 1 }}>⋮⋮</span></div>
+          <button onClick={handleComplete} style={{ width: '20px', height: '20px', borderRadius: '6px', border: `2px solid ${block.completed ? '#4ECDC4' : 'rgba(255,255,255,0.3)'}`, background: block.completed ? '#4ECDC4' : 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, marginTop: '2px' }}>{block.completed && <span style={{ color: '#fff', fontSize: '11px' }}>✓</span>}</button>
           <div style={{ flex: 1 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px', flexWrap: 'wrap' }}>
-              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: isActive ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.4)' }}>{formatHour(block.hour)}</span>
-              <span style={{ padding: '3px 8px', borderRadius: '12px', fontSize: '10px', fontWeight: '600', textTransform: 'uppercase', background: isActive ? 'rgba(255,255,255,0.2)' : colors.bg + '30', color: isActive ? colors.text : colors.bg }}>{block.category}</span>
-              {block.is_recurring && <span style={{ fontSize: '12px', color: 'rgba(255,255,255,0.5)' }}>🔄</span>}
-              {block.pomodoro_count > 0 && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: isActive ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.4)' }}>🍅 ×{block.pomodoro_count}</span>}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px', flexWrap: 'wrap' }}>
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: isActive ? 'rgba(255,255,255,0.9)' : 'rgba(255,255,255,0.4)' }}>{getTimeRange()}</span>
+              <span style={{ padding: '2px 6px', borderRadius: '10px', fontSize: '9px', fontWeight: '600', textTransform: 'uppercase', background: isActive ? 'rgba(255,255,255,0.2)' : colors.bg + '30', color: isActive ? colors.text : colors.bg }}>{block.category}</span>
+              {block.timer_duration && (
+                <span style={{ fontSize: '10px', color: '#FFC75F', display: 'flex', alignItems: 'center', gap: '2px', background: 'rgba(255,199,95,0.1)', padding: '2px 6px', borderRadius: '8px' }}>
+                  ⏱️ {block.timer_duration}m
+                </span>
+              )}
+              {block.is_recurring && <span style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}>🔄</span>}
+              {block.pomodoro_count > 0 && <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px', color: isActive ? 'rgba(255,255,255,0.8)' : 'rgba(255,255,255,0.4)' }}>🍅 ×{block.pomodoro_count}</span>}
             </div>
-            {isEditing ? (<input value={editedTitle} onChange={(e) => setEditedTitle(e.target.value)} onBlur={handleSave} onKeyPress={(e) => e.key === 'Enter' && handleSave()} autoFocus onClick={(e) => e.stopPropagation()} style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', padding: '8px 12px', color: '#fff', fontSize: '15px', width: '100%', outline: 'none' }} />) : (<div onClick={(e) => { e.stopPropagation(); setIsEditing(true); }} style={{ fontSize: '16px', fontWeight: '600', color: isActive ? colors.text : block.completed ? '#4ECDC4' : 'rgba(255,255,255,0.9)', textDecoration: block.completed ? 'line-through' : 'none' }}>{block.title || 'Click to add task...'}</div>)}
+            {isEditing ? (<input value={editedTitle} onChange={(e) => setEditedTitle(e.target.value)} onBlur={handleSave} onKeyPress={(e) => e.key === 'Enter' && handleSave()} autoFocus onClick={(e) => e.stopPropagation()} style={{ background: 'rgba(0,0,0,0.2)', border: '1px solid rgba(255,255,255,0.2)', borderRadius: '8px', padding: '6px 10px', color: '#fff', fontSize: '14px', width: '100%', outline: 'none' }} />) : (<div onClick={(e) => { e.stopPropagation(); setIsEditing(true); }} style={{ fontSize: '14px', fontWeight: '600', color: isActive ? colors.text : block.completed ? '#4ECDC4' : 'rgba(255,255,255,0.9)', textDecoration: block.completed ? 'line-through' : 'none' }}>{block.title || 'Click to add task...'}</div>)}
           </div>
         </div>
-        <div style={{ display: 'flex', gap: '6px' }}>
-          <button onClick={(e) => { e.stopPropagation(); onEdit?.(block); }} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '6px', padding: '6px 8px', cursor: 'pointer', color: 'rgba(255,255,255,0.5)', fontSize: '12px' }} title="Edit block">✏️</button>
-          <button onClick={(e) => { e.stopPropagation(); onDelete(block.id); }} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '6px', padding: '6px 8px', cursor: 'pointer', color: 'rgba(255,255,255,0.5)', fontSize: '14px' }} title="Delete block">×</button>
+        <div style={{ display: 'flex', gap: '4px' }}>
+          {onStartTimer && (
+            <button onClick={(e) => { e.stopPropagation(); onStartTimer(block); }} style={{ background: 'rgba(255,107,107,0.2)', border: 'none', borderRadius: '6px', padding: '5px 7px', cursor: 'pointer', color: '#FF6B6B', fontSize: '11px' }} title="Start timer">▶</button>
+          )}
+          <button onClick={(e) => { e.stopPropagation(); onEdit?.(block); }} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '6px', padding: '5px 7px', cursor: 'pointer', color: 'rgba(255,255,255,0.5)', fontSize: '11px' }} title="Edit block">✏️</button>
+          <button onClick={(e) => { e.stopPropagation(); onDelete(block.id); }} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '6px', padding: '5px 7px', cursor: 'pointer', color: 'rgba(255,255,255,0.5)', fontSize: '12px' }} title="Delete block">×</button>
         </div>
       </div>
     </div>
   );
 };
 
-const DroppableCell = ({ date, hour, block, onCellClick, children }) => {
+const DroppableCell = ({ date, hour, blocks, onCellClick, children }) => {
   const dragContext = useDrag();
   const [isDragOver, setIsDragOver] = useState(false);
   const handleDragOver = (e) => { e.preventDefault(); e.dataTransfer.dropEffect = 'move'; if (!isDragOver) { setIsDragOver(true); dragContext?.setDropTarget({ date, hour }); } };
   const handleDragLeave = (e) => { e.preventDefault(); setIsDragOver(false); dragContext?.setDropTarget(null); };
   const handleDrop = (e) => { e.preventDefault(); setIsDragOver(false); const draggedBlock = dragContext?.draggedBlock; if (draggedBlock && dragContext?.onDrop && (draggedBlock.date !== date || draggedBlock.hour !== hour)) dragContext.onDrop(draggedBlock, { date, hour }); dragContext?.setDraggedBlock(null); dragContext?.setDropTarget(null); };
-  const handleClick = () => { if (!block) onCellClick(date, hour); };
-  return (<div onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop} onClick={handleClick} style={{ minHeight: '44px', borderRadius: '6px', border: isDragOver ? '2px dashed #4ECDC4' : '1px dashed rgba(255,255,255,0.1)', cursor: 'pointer', padding: '3px', background: isDragOver ? 'rgba(78,205,196,0.1)' : 'transparent' }}>{children}</div>);
+  const handleClick = () => { onCellClick(date, hour); };
+  
+  return (
+    <div onDragOver={handleDragOver} onDragLeave={handleDragLeave} onDrop={handleDrop} onClick={handleClick} style={{ minHeight: '44px', borderRadius: '6px', border: isDragOver ? '2px dashed #4ECDC4' : '1px dashed rgba(255,255,255,0.1)', cursor: 'pointer', padding: '3px', background: isDragOver ? 'rgba(78,205,196,0.1)' : 'transparent' }}>
+      {children}
+    </div>
+  );
 };
 
 const EditBlockModal = ({ block, onUpdate, onClose }) => {
   const [title, setTitle] = useState(block.title || '');
   const [category, setCategory] = useState(block.category);
   const [hour, setHour] = useState(block.hour);
+  const [startMinute, setStartMinute] = useState(block.start_minute || 0);
+  const [durationMinutes, setDurationMinutes] = useState(block.duration_minutes || 60);
+  const [timerDuration, setTimerDuration] = useState(block.timer_duration || 25);
+  const [useCustomTimer, setUseCustomTimer] = useState(!!block.timer_duration);
   const categories = ['work', 'meeting', 'break', 'personal', 'learning', 'exercise'];
   const hours = Array.from({ length: 16 }, (_, i) => i + 6);
-  const handleSubmit = (e) => { e.preventDefault(); onUpdate({ ...block, title, category, hour }); onClose(); };
+  const minutes = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
+  const durations = [5, 10, 15, 20, 25, 30, 45, 60, 90, 120];
+  
+  const handleSubmit = (e) => { 
+    e.preventDefault(); 
+    onUpdate({ ...block, title, category, hour, start_minute: startMinute, duration_minutes: durationMinutes, timer_duration: useCustomTimer ? timerDuration : null }); 
+    onClose(); 
+  };
+  
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }} onClick={onClose}>
-      <div style={{ background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)', borderRadius: '24px', padding: '32px', width: '100%', maxWidth: '420px', border: '1px solid rgba(255,255,255,0.08)' }} onClick={(e) => e.stopPropagation()}>
+      <div style={{ background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)', borderRadius: '24px', padding: '32px', width: '100%', maxWidth: '480px', border: '1px solid rgba(255,255,255,0.08)', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
         <h2 style={{ margin: '0 0 24px 0', fontSize: '24px', fontWeight: '700', color: '#fff' }}>Edit Block</h2>
         <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '20px' }}><label style={{ display: 'block', marginBottom: '8px', color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>Task Title</label><input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What are you working on?" style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: '15px', outline: 'none', boxSizing: 'border-box' }} /></div>
-          <div style={{ marginBottom: '20px' }}><label style={{ display: 'block', marginBottom: '8px', color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>Time</label><select value={hour} onChange={(e) => setHour(parseInt(e.target.value))} style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: '15px', outline: 'none', boxSizing: 'border-box', cursor: 'pointer' }}>{hours.map(h => (<option key={h} value={h} style={{ background: '#1a1a2e', color: '#fff' }}>{formatHour(h)}</option>))}</select></div>
-          <div style={{ marginBottom: '24px' }}><label style={{ display: 'block', marginBottom: '12px', color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>Category</label><div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>{categories.map(cat => (<button key={cat} type="button" onClick={() => setCategory(cat)} style={{ padding: '10px 16px', borderRadius: '20px', border: 'none', background: category === cat ? categoryColors[cat].bg : 'rgba(255,255,255,0.05)', color: category === cat ? categoryColors[cat].text : 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: '600', textTransform: 'capitalize', cursor: 'pointer' }}>{cat}</button>))}</div></div>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>Task Title</label>
+            <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What are you working on?" style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: '15px', outline: 'none', boxSizing: 'border-box' }} />
+          </div>
+          <div style={{ marginBottom: '20px', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+            <div>
+              <label style={{ display: 'block', marginBottom: '8px', color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>Start Hour</label>
+              <select value={hour} onChange={(e) => setHour(parseInt(e.target.value))} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: '14px', outline: 'none', cursor: 'pointer' }}>
+                {hours.map(h => (<option key={h} value={h} style={{ background: '#1a1a2e', color: '#fff' }}>{formatHour(h)}</option>))}
+              </select>
+            </div>
+            <div>
+              <label style={{ display: 'block', marginBottom: '8px', color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>Start Minute</label>
+              <select value={startMinute} onChange={(e) => setStartMinute(parseInt(e.target.value))} style={{ width: '100%', padding: '12px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: '14px', outline: 'none', cursor: 'pointer' }}>
+                {minutes.map(m => (<option key={m} value={m} style={{ background: '#1a1a2e', color: '#fff' }}>:{m.toString().padStart(2, '0')}</option>))}
+              </select>
+            </div>
+          </div>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>Block Duration</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {durations.map(d => (<button key={d} type="button" onClick={() => setDurationMinutes(d)} style={{ padding: '10px 14px', borderRadius: '12px', border: 'none', background: durationMinutes === d ? 'rgba(78,205,196,0.3)' : 'rgba(255,255,255,0.05)', color: durationMinutes === d ? '#4ECDC4' : 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: '600', cursor: 'pointer', fontFamily: "'JetBrains Mono', monospace" }}>{d >= 60 ? `${d/60}h` : `${d}m`}</button>))}
+            </div>
+          </div>
+          <div style={{ marginBottom: '20px', padding: '16px', background: 'rgba(255,199,95,0.05)', borderRadius: '12px', border: '1px solid rgba(255,199,95,0.2)' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', fontSize: '14px', marginBottom: useCustomTimer ? '16px' : '0' }}>
+              <input type="checkbox" checked={useCustomTimer} onChange={(e) => setUseCustomTimer(e.target.checked)} style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#FFC75F' }} />⏱️ Custom Timer for this Block
+            </label>
+            {useCustomTimer && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                  <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>Timer Duration</span>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '18px', fontWeight: '700', color: '#FFC75F' }}>{timerDuration} min</span>
+                </div>
+                <input type="range" min="5" max="120" value={timerDuration} onChange={(e) => setTimerDuration(parseInt(e.target.value))} style={{ width: '100%', height: '8px', borderRadius: '4px', appearance: 'none', background: `linear-gradient(to right, #FFC75F 0%, #FFC75F ${(timerDuration - 5) / 115 * 100}%, rgba(255,255,255,0.1) ${(timerDuration - 5) / 115 * 100}%, rgba(255,255,255,0.1) 100%)`, cursor: 'pointer' }} />
+              </div>
+            )}
+          </div>
+          <div style={{ marginBottom: '24px' }}>
+            <label style={{ display: 'block', marginBottom: '12px', color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>Category</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {categories.map(cat => (<button key={cat} type="button" onClick={() => setCategory(cat)} style={{ padding: '10px 16px', borderRadius: '20px', border: 'none', background: category === cat ? categoryColors[cat].bg : 'rgba(255,255,255,0.05)', color: category === cat ? categoryColors[cat].text : 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: '600', textTransform: 'capitalize', cursor: 'pointer' }}>{cat}</button>))}
+            </div>
+          </div>
           <div style={{ display: 'flex', gap: '12px' }}><button type="button" onClick={onClose} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: 'rgba(255,255,255,0.7)', fontSize: '15px', fontWeight: '600', cursor: 'pointer' }}>Cancel</button><button type="submit" style={{ flex: 1, padding: '14px', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg, #FF6B6B 0%, #FF8E8E 100%)', color: '#fff', fontSize: '15px', fontWeight: '600', cursor: 'pointer' }}>Save Changes</button></div>
         </form>
       </div>
@@ -299,32 +504,109 @@ const TimerSettingsModal = ({ preferences, onSave, onClose }) => {
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '24px' }}><h2 style={{ margin: 0, fontSize: '24px', fontWeight: '700', color: '#fff', display: 'flex', alignItems: 'center', gap: '10px' }}>⚙️ Timer Settings</h2><button onClick={onClose} style={{ background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '8px', padding: '8px 12px', color: 'rgba(255,255,255,0.6)', fontSize: '16px', cursor: 'pointer' }}>✕</button></div>
         <div style={{ marginBottom: '28px' }}><label style={{ display: 'block', marginBottom: '12px', color: 'rgba(255,255,255,0.6)', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Quick Presets</label><div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '10px' }}>{presets.map((preset) => (<button key={preset.name} onClick={() => handlePreset(preset)} style={{ padding: '14px 16px', borderRadius: '12px', border: workDuration === preset.work && shortBreak === preset.short ? '2px solid #FF6B6B' : '1px solid rgba(255,255,255,0.1)', background: workDuration === preset.work && shortBreak === preset.short ? 'rgba(255,107,107,0.15)' : 'rgba(255,255,255,0.03)', cursor: 'pointer', textAlign: 'left' }}><div style={{ fontSize: '20px', marginBottom: '4px' }}>{preset.icon}</div><div style={{ color: '#fff', fontSize: '14px', fontWeight: '600' }}>{preset.name}</div><div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '11px', fontFamily: "'JetBrains Mono', monospace", marginTop: '4px' }}>{preset.work}/{preset.short}/{preset.long} min</div></button>))}</div></div>
         <div style={{ marginBottom: '28px' }}><label style={{ display: 'block', marginBottom: '16px', color: 'rgba(255,255,255,0.6)', fontSize: '13px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>Custom Durations</label><div style={{ marginBottom: '20px' }}><label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', color: 'rgba(255,255,255,0.7)', fontSize: '14px' }}><span>🍅 Focus Duration</span><span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '18px', fontWeight: '700', color: '#FF6B6B' }}>{workDuration} min</span></label><input type="range" min="5" max="120" value={workDuration} onChange={(e) => setWorkDuration(parseInt(e.target.value))} style={{ width: '100%', height: '8px', borderRadius: '4px', appearance: 'none', background: `linear-gradient(to right, #FF6B6B 0%, #FF6B6B ${(workDuration - 5) / 115 * 100}%, rgba(255,255,255,0.1) ${(workDuration - 5) / 115 * 100}%, rgba(255,255,255,0.1) 100%)`, cursor: 'pointer' }} /></div><div style={{ marginBottom: '20px' }}><label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', color: 'rgba(255,255,255,0.7)', fontSize: '14px' }}><span>☕ Short Break</span><span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '18px', fontWeight: '700', color: '#4ECDC4' }}>{shortBreak} min</span></label><input type="range" min="1" max="30" value={shortBreak} onChange={(e) => setShortBreak(parseInt(e.target.value))} style={{ width: '100%', height: '8px', borderRadius: '4px', appearance: 'none', background: `linear-gradient(to right, #4ECDC4 0%, #4ECDC4 ${(shortBreak - 1) / 29 * 100}%, rgba(255,255,255,0.1) ${(shortBreak - 1) / 29 * 100}%, rgba(255,255,255,0.1) 100%)`, cursor: 'pointer' }} /></div><div style={{ marginBottom: '20px' }}><label style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px', color: 'rgba(255,255,255,0.7)', fontSize: '14px' }}><span>🌴 Long Break</span><span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '18px', fontWeight: '700', color: '#845EC2' }}>{longBreak} min</span></label><input type="range" min="5" max="60" value={longBreak} onChange={(e) => setLongBreak(parseInt(e.target.value))} style={{ width: '100%', height: '8px', borderRadius: '4px', appearance: 'none', background: `linear-gradient(to right, #845EC2 0%, #845EC2 ${(longBreak - 5) / 55 * 100}%, rgba(255,255,255,0.1) ${(longBreak - 5) / 55 * 100}%, rgba(255,255,255,0.1) 100%)`, cursor: 'pointer' }} /></div></div>
+        <div style={{ padding: '16px', background: 'rgba(255,199,95,0.05)', borderRadius: '12px', border: '1px solid rgba(255,199,95,0.2)', marginBottom: '20px' }}><div style={{ color: '#FFC75F', fontSize: '13px', fontWeight: '600', marginBottom: '6px' }}>💡 Tip: Custom Block Timers</div><div style={{ color: 'rgba(255,255,255,0.5)', fontSize: '12px', lineHeight: '1.5' }}>You can set a custom timer for individual blocks! When editing a block, enable "Custom Timer" to override the default duration.</div></div>
         <div style={{ display: 'flex', gap: '12px' }}><button onClick={onClose} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: 'rgba(255,255,255,0.7)', fontSize: '15px', fontWeight: '600', cursor: 'pointer' }}>Cancel</button><button onClick={handleSave} disabled={isSaving} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg, #FF6B6B 0%, #FF8E8E 100%)', color: '#fff', fontSize: '15px', fontWeight: '600', cursor: isSaving ? 'wait' : 'pointer', opacity: isSaving ? 0.7 : 1 }}>{isSaving ? 'Saving...' : 'Save Settings'}</button></div>
       </div>
     </div>
   );
 };
 
-const AddBlockModal = ({ hour, date, onAdd, onClose }) => {
+const AddBlockModal = ({ hour, date, onAdd, onClose, existingBlocks = [] }) => {
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState('work');
   const [isRecurring, setIsRecurring] = useState(false);
   const [recurrencePattern, setRecurrencePattern] = useState('daily');
+  const [startMinute, setStartMinute] = useState(0);
+  const [durationMinutes, setDurationMinutes] = useState(30);
+  const [timerDuration, setTimerDuration] = useState(25);
+  const [useCustomTimer, setUseCustomTimer] = useState(false);
+  
   const categories = ['work', 'meeting', 'break', 'personal', 'learning', 'exercise'];
   const recurrenceOptions = [{ value: 'daily', label: 'Every day' }, { value: 'weekdays', label: 'Weekdays only' }, { value: 'weekly', label: 'Weekly' }];
-  const handleSubmit = (e) => { e.preventDefault(); onAdd({ title, category, hour, date, duration: 1, is_recurring: isRecurring, recurrence_pattern: isRecurring ? recurrencePattern : null }); onClose(); };
+  const minutes = [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55];
+  const durations = [5, 10, 15, 20, 25, 30, 45, 60];
+  
+  const getOccupiedMinutes = () => {
+    const occupied = new Set();
+    existingBlocks.forEach(block => {
+      const start = block.start_minute || 0;
+      const duration = block.duration_minutes || 60;
+      for (let m = start; m < start + duration && m < 60; m++) {
+        occupied.add(m);
+      }
+    });
+    return occupied;
+  };
+  
+  const occupiedMinutes = getOccupiedMinutes();
+  const availableStartMinutes = minutes.filter(m => !occupiedMinutes.has(m));
+  
+  useEffect(() => {
+    if (availableStartMinutes.length > 0 && !availableStartMinutes.includes(startMinute)) {
+      setStartMinute(availableStartMinutes[0]);
+    }
+  }, []);
+  
+  const handleSubmit = (e) => { 
+    e.preventDefault(); 
+    onAdd({ title, category, hour, date, start_minute: startMinute, duration_minutes: durationMinutes, timer_duration: useCustomTimer ? timerDuration : null, is_recurring: isRecurring, recurrence_pattern: isRecurring ? recurrencePattern : null }); 
+    onClose(); 
+  };
+  
   return (
     <div style={{ position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(8px)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '20px' }} onClick={onClose}>
-      <div style={{ background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)', borderRadius: '24px', padding: '32px', width: '100%', maxWidth: '420px', border: '1px solid rgba(255,255,255,0.08)' }} onClick={(e) => e.stopPropagation()}>
+      <div style={{ background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)', borderRadius: '24px', padding: '32px', width: '100%', maxWidth: '480px', border: '1px solid rgba(255,255,255,0.08)', maxHeight: '90vh', overflowY: 'auto' }} onClick={(e) => e.stopPropagation()}>
         <h2 style={{ margin: '0 0 24px 0', fontSize: '24px', fontWeight: '700', color: '#fff' }}>Add Time Block</h2>
         <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: '20px' }}><label style={{ display: 'block', marginBottom: '8px', color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>Task Title</label><input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What are you working on?" autoFocus style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: '15px', outline: 'none', boxSizing: 'border-box' }} /></div>
-          <div style={{ marginBottom: '20px' }}><label style={{ display: 'block', marginBottom: '12px', color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>Category</label><div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>{categories.map(cat => (<button key={cat} type="button" onClick={() => setCategory(cat)} style={{ padding: '10px 16px', borderRadius: '20px', border: 'none', background: category === cat ? categoryColors[cat].bg : 'rgba(255,255,255,0.05)', color: category === cat ? categoryColors[cat].text : 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: '600', textTransform: 'capitalize', cursor: 'pointer' }}>{cat}</button>))}</div></div>
-          <div style={{ marginBottom: '20px' }}><label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', fontSize: '14px' }}><input type="checkbox" checked={isRecurring} onChange={(e) => setIsRecurring(e.target.checked)} style={{ width: '18px', height: '18px', cursor: 'pointer' }} />🔄 Make this recurring</label></div>
-          {isRecurring && <div style={{ marginBottom: '20px' }}><div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>{recurrenceOptions.map(opt => (<button key={opt.value} type="button" onClick={() => setRecurrencePattern(opt.value)} style={{ padding: '10px 16px', borderRadius: '20px', border: 'none', background: recurrencePattern === opt.value ? 'rgba(78,205,196,0.3)' : 'rgba(255,255,255,0.05)', color: recurrencePattern === opt.value ? '#4ECDC4' : 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: '500', cursor: 'pointer' }}>{opt.label}</button>))}</div></div>}
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>Task Title</label>
+            <input type="text" value={title} onChange={(e) => setTitle(e.target.value)} placeholder="What are you working on?" autoFocus style={{ width: '100%', padding: '14px 16px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.1)', background: 'rgba(255,255,255,0.05)', color: '#fff', fontSize: '15px', outline: 'none', boxSizing: 'border-box' }} />
+          </div>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>Start Time</label>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {minutes.map(m => {
+                const isOccupied = occupiedMinutes.has(m);
+                return (<button key={m} type="button" disabled={isOccupied} onClick={() => setStartMinute(m)} style={{ padding: '10px 14px', borderRadius: '12px', border: 'none', background: isOccupied ? 'rgba(255,255,255,0.02)' : startMinute === m ? 'rgba(78,205,196,0.3)' : 'rgba(255,255,255,0.05)', color: isOccupied ? 'rgba(255,255,255,0.2)' : startMinute === m ? '#4ECDC4' : 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: '600', cursor: isOccupied ? 'not-allowed' : 'pointer', fontFamily: "'JetBrains Mono', monospace", textDecoration: isOccupied ? 'line-through' : 'none' }}>:{m.toString().padStart(2, '0')}</button>);
+              })}
+            </div>
+            <div style={{ fontSize: '11px', color: 'rgba(255,255,255,0.4)', marginTop: '8px' }}>Block starts at {formatMinuteTime(hour, startMinute)}</div>
+          </div>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', marginBottom: '8px', color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>Duration</label>
+            <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+              {durations.map(d => (<button key={d} type="button" onClick={() => setDurationMinutes(d)} style={{ padding: '10px 14px', borderRadius: '12px', border: 'none', background: durationMinutes === d ? 'rgba(255,107,107,0.3)' : 'rgba(255,255,255,0.05)', color: durationMinutes === d ? '#FF6B6B' : 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: '600', cursor: 'pointer', fontFamily: "'JetBrains Mono', monospace" }}>{d >= 60 ? `${d/60}h` : `${d}m`}</button>))}
+            </div>
+          </div>
+          <div style={{ marginBottom: '20px', padding: '16px', background: 'rgba(255,199,95,0.05)', borderRadius: '12px', border: '1px solid rgba(255,199,95,0.2)' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', fontSize: '14px', marginBottom: useCustomTimer ? '16px' : '0' }}>
+              <input type="checkbox" checked={useCustomTimer} onChange={(e) => setUseCustomTimer(e.target.checked)} style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: '#FFC75F' }} />⏱️ Custom Timer Duration
+            </label>
+            {useCustomTimer && (
+              <div>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '10px' }}>
+                  <span style={{ color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>Timer Duration</span>
+                  <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '18px', fontWeight: '700', color: '#FFC75F' }}>{timerDuration} min</span>
+                </div>
+                <input type="range" min="5" max="120" value={timerDuration} onChange={(e) => setTimerDuration(parseInt(e.target.value))} style={{ width: '100%', height: '8px', borderRadius: '4px', appearance: 'none', background: `linear-gradient(to right, #FFC75F 0%, #FFC75F ${(timerDuration - 5) / 115 * 100}%, rgba(255,255,255,0.1) ${(timerDuration - 5) / 115 * 100}%, rgba(255,255,255,0.1) 100%)`, cursor: 'pointer' }} />
+              </div>
+            )}
+          </div>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'block', marginBottom: '12px', color: 'rgba(255,255,255,0.6)', fontSize: '13px' }}>Category</label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {categories.map(cat => (<button key={cat} type="button" onClick={() => setCategory(cat)} style={{ padding: '10px 16px', borderRadius: '20px', border: 'none', background: category === cat ? categoryColors[cat].bg : 'rgba(255,255,255,0.05)', color: category === cat ? categoryColors[cat].text : 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: '600', textTransform: 'capitalize', cursor: 'pointer' }}>{cat}</button>))}
+            </div>
+          </div>
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '10px', cursor: 'pointer', color: 'rgba(255,255,255,0.7)', fontSize: '14px' }}>
+              <input type="checkbox" checked={isRecurring} onChange={(e) => setIsRecurring(e.target.checked)} style={{ width: '18px', height: '18px', cursor: 'pointer' }} />🔄 Make this recurring
+            </label>
+          </div>
+          {isRecurring && (<div style={{ marginBottom: '20px' }}><div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>{recurrenceOptions.map(opt => (<button key={opt.value} type="button" onClick={() => setRecurrencePattern(opt.value)} style={{ padding: '10px 16px', borderRadius: '20px', border: 'none', background: recurrencePattern === opt.value ? 'rgba(78,205,196,0.3)' : 'rgba(255,255,255,0.05)', color: recurrencePattern === opt.value ? '#4ECDC4' : 'rgba(255,255,255,0.6)', fontSize: '13px', fontWeight: '500', cursor: 'pointer' }}>{opt.label}</button>))}</div></div>)}
           <div style={{ display: 'flex', gap: '12px' }}><button type="button" onClick={onClose} style={{ flex: 1, padding: '14px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: 'rgba(255,255,255,0.7)', fontSize: '15px', fontWeight: '600', cursor: 'pointer' }}>Cancel</button><button type="submit" style={{ flex: 1, padding: '14px', borderRadius: '12px', border: 'none', background: 'linear-gradient(135deg, #FF6B6B 0%, #FF8E8E 100%)', color: '#fff', fontSize: '15px', fontWeight: '600', cursor: 'pointer' }}>Add Block</button></div>
         </form>
-        <div style={{ marginTop: '16px', padding: '12px 16px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: 'rgba(255,255,255,0.4)', textAlign: 'center' }}>{formatHour(hour)} on {formatDateShort(date)}</div>
+        <div style={{ marginTop: '16px', padding: '12px 16px', background: 'rgba(255,255,255,0.03)', borderRadius: '12px', fontFamily: "'JetBrains Mono', monospace", fontSize: '12px', color: 'rgba(255,255,255,0.4)', textAlign: 'center' }}>{formatMinuteTime(hour, startMinute)} on {formatDateShort(date)}</div>
       </div>
     </div>
   );
@@ -344,87 +626,50 @@ const AnalyticsDashboard = ({ stats, blocks }) => {
         {[{ value: todayPomodoros, label: 'Pomodoros', color: '#FF6B6B' }, { value: completedBlocks, label: 'Completed', color: '#4ECDC4' }, { value: totalBlocks, label: 'Total', color: '#845EC2' }].map((stat, i) => (<div key={i} className="analytics-card" style={{ background: `${stat.color}10`, borderRadius: '12px', padding: '16px', textAlign: 'center', minWidth: 0 }}><div className="analytics-value" style={{ fontSize: '28px', fontWeight: '700', color: stat.color, fontFamily: "'JetBrains Mono', monospace" }}>{stat.value}</div><div className="analytics-label" style={{ fontSize: '9px', color: 'rgba(255,255,255,0.4)', textTransform: 'uppercase', letterSpacing: '0.5px', marginTop: '2px' }}>{stat.label}</div></div>))}
       </div>
       <div style={{ marginBottom: '24px' }}><h3 style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', marginBottom: '12px' }}>Daily Pomodoros</h3><div style={{ display: 'flex', alignItems: 'flex-end', gap: '8px', height: '80px' }}>{dailyPomodoros.map((d, i) => (<div key={i} style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center' }}><div style={{ width: '100%', height: `${(d.pomodoros / maxPomodoros) * 100}px`, background: d.pomodoros > 0 ? 'linear-gradient(180deg, #FF6B6B 0%, #FF8E8E 100%)' : 'rgba(255,255,255,0.1)', borderRadius: '6px 6px 4px 4px', minHeight: '6px' }} /><span style={{ fontSize: '9px', color: 'rgba(255,255,255,0.5)', marginTop: '6px', fontFamily: "'JetBrains Mono', monospace" }}>{d.day}</span></div>))}</div></div>
-      <div><h3 style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', marginBottom: '12px' }}>Category Breakdown</h3><div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>{Object.entries(categoryBreakdown).map(([cat, count]) => (<div key={cat} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: `${categoryColors[cat].bg}20`, padding: '6px 10px', borderRadius: '16px' }}><div style={{ width: '8px', height: '8px', borderRadius: '50%', background: categoryColors[cat].bg }} /><span style={{ fontSize: '11px', color: '#fff', textTransform: 'capitalize' }}>{cat}: {count}</span></div>))}</div></div>
+      <div><h3 style={{ fontSize: '13px', color: 'rgba(255,255,255,0.6)', marginBottom: '12px' }}>Category Breakdown</h3><div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>{Object.entries(categoryBreakdown).map(([cat, count]) => (<div key={cat} style={{ display: 'flex', alignItems: 'center', gap: '6px', background: `${categoryColors[cat]?.bg || '#666'}20`, padding: '6px 10px', borderRadius: '16px' }}><div style={{ width: '8px', height: '8px', borderRadius: '50%', background: categoryColors[cat]?.bg || '#666' }} /><span style={{ fontSize: '11px', color: '#fff', textTransform: 'capitalize' }}>{cat}: {count}</span></div>))}</div></div>
     </div>
   );
 };
 
-export default function App() {
-  const [user, setUser] = useState(null);
-  const [isLoading, setIsLoading] = useState(true);
-  const [blocks, setBlocks] = useState([]);
-  const [stats, setStats] = useState([]);
-  const [preferences, setPreferences] = useState(null);
-  const [showModal, setShowModal] = useState(false);
-  const [selectedHour, setSelectedHour] = useState(null);
-  const [selectedDate, setSelectedDate] = useState(new Date().toISOString().split('T')[0]);
-  const [viewMode, setViewMode] = useState('week');
-  const [activeBlockId, setActiveBlockId] = useState(null);
-  const [isSyncing, setIsSyncing] = useState(false);
-  const [editingBlock, setEditingBlock] = useState(null);
-  const [showTimerSettings, setShowTimerSettings] = useState(false);
-
-  const today = new Date().toISOString().split('T')[0];
-  const weekDates = useMemo(() => getWeekDates(selectedDate), [selectedDate]);
-  const currentHour = new Date().getHours();
-
-  useEffect(() => { const { data: { subscription } } = auth.onAuthStateChange((event, session) => { setUser(session?.user || null); setIsLoading(false); }); auth.getSession().then(({ data: { session } }) => { setUser(session?.user || null); setIsLoading(false); }); return () => subscription.unsubscribe(); }, []);
-  useEffect(() => { if (user) loadData(); }, [user, selectedDate, viewMode]);
-
-  const loadData = async () => { if (!user) return; setIsSyncing(true); try { const startDate = viewMode === 'week' ? weekDates[0] : selectedDate; const endDate = viewMode === 'week' ? weekDates[6] : selectedDate; const [blocksRes, statsRes, prefsRes] = await Promise.all([db.getTimeBlocks(user.id, startDate, endDate), db.getStatsRange(user.id, startDate, endDate), db.getPreferences(user.id)]); setBlocks(blocksRes.data || []); setStats(statsRes.data || []); if (prefsRes.data) setPreferences(prefsRes.data); } catch (error) { console.error('Error loading data:', error); } setIsSyncing(false); };
-  const handleAddBlock = async (block) => { if (!user) return; setIsSyncing(true); const tempId = Date.now(); const newBlock = { ...block, id: tempId }; setBlocks(prev => [...prev, newBlock]); const { data, error } = block.is_recurring ? await db.createRecurringTask(user.id, block) : await db.createTimeBlock(user.id, block); if (data && !error) setBlocks(prev => prev.map(b => b.id === tempId ? data : b)); setIsSyncing(false); };
-  const handleUpdateBlock = async (updatedBlock) => { if (!user) return; setIsSyncing(true); setBlocks(prev => prev.map(b => b.id === updatedBlock.id ? updatedBlock : b)); await db.updateTimeBlock(user.id, updatedBlock.id, updatedBlock); setIsSyncing(false); };
-  const handleDeleteBlock = async (id) => { if (!user) return; setIsSyncing(true); setBlocks(prev => prev.filter(b => b.id !== id)); await db.deleteTimeBlock(user.id, id); setIsSyncing(false); };
-  const handleBlockDrop = async (draggedBlock, dropTarget) => { if (!user) return; const updatedBlock = { ...draggedBlock, date: dropTarget.date, hour: dropTarget.hour }; await handleUpdateBlock(updatedBlock); };
-  const handlePomodoroComplete = async () => { if (!user) return; const activeBlock = blocks.find(b => b.id === activeBlockId); await db.updatePomodoroStats(user.id, 1, activeBlock?.category); if (activeBlockId) { const block = blocks.find(b => b.id === activeBlockId); if (block) handleUpdateBlock({ ...block, pomodoro_count: (block.pomodoro_count || 0) + 1 }); } loadData(); };
-  const handleSignOut = async () => { clearTimerState(); await auth.signOut(); setUser(null); setBlocks([]); setStats([]); };
-  const navigateWeek = (direction) => { const current = new Date(selectedDate); current.setDate(current.getDate() + (direction * 7)); setSelectedDate(current.toISOString().split('T')[0]); };
-  const handleSavePreferences = async (newPrefs) => { if (!user) return; setIsSyncing(true); setPreferences(prev => ({ ...prev, ...newPrefs })); await db.upsertPreferences(user.id, newPrefs); setIsSyncing(false); };
-  const handleCellClick = (date, hour) => { setSelectedHour(hour); setSelectedDate(date); setShowModal(true); };
-
-  const activeBlock = blocks.find(b => b.id === activeBlockId);
-  const hours = Array.from({ length: 16 }, (_, i) => i + 6);
-
-  if (isLoading) return (<div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}><div style={{ textAlign: 'center', color: '#fff' }}><div style={{ fontSize: '48px', marginBottom: '16px' }}>⏱️</div><div>Loading...</div></div></div>);
-  if (!user) return <AuthScreen />;
-
-  return (
-    <DragProvider onDrop={handleBlockDrop}>
-      <div style={{ minHeight: '100vh', background: 'linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%)', color: '#fff', fontFamily: "'Space Grotesk', sans-serif" }}>
-        <style>{`@keyframes pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } } @media (max-width: 900px) { .main-grid { grid-template-columns: 1fr !important; } .right-column { order: -1; } } @media (max-width: 600px) { .app-header { flex-direction: column !important; gap: 12px !important; padding: 12px 16px !important; } .header-left, .header-right { width: 100% !important; justify-content: center !important; } .main-content { padding: 12px !important; } .drag-badge { display: none !important; } .analytics-grid { gap: 8px !important; } .analytics-card { padding: 10px 6px !important; } .analytics-value { font-size: 20px !important; } .analytics-label { font-size: 7px !important; } .week-grid-container { padding: 12px !important; } .week-grid { grid-template-columns: 40px repeat(7, minmax(32px, 1fr)) !important; gap: 3px !important; min-width: unset !important; } .day-header { padding: 4px 2px !important; } .day-name { font-size: 8px !important; } .day-number { font-size: 11px !important; } .time-label { font-size: 7px !important; padding-right: 2px !important; } .timer-container { padding: 16px !important; } .timer-mode-btn { padding: 8px 10px !important; font-size: 9px !important; } .view-controls { flex-direction: column !important; gap: 8px !important; } .view-toggle button { padding: 6px 12px !important; font-size: 11px !important; } }`}</style>
-        <header className="app-header" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '20px 32px', borderBottom: '1px solid rgba(255,255,255,0.05)', flexWrap: 'wrap', gap: '12px' }}>
-          <div className="header-left" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}><h1 style={{ fontSize: '28px', fontWeight: '700', margin: 0, background: 'linear-gradient(135deg, #FF6B6B 0%, #4ECDC4 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>FOCUS</h1><span className="drag-badge" style={{ padding: '4px 12px', background: 'rgba(78,205,196,0.2)', borderRadius: '12px', fontSize: '11px', color: '#4ECDC4', fontFamily: "'JetBrains Mono', monospace" }}>Drag & Drop Enabled ✨</span></div>
-          <div className="header-right" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}><div style={{ display: 'flex', alignItems: 'center', gap: '8px', padding: '8px 16px', background: 'rgba(255,255,255,0.05)', borderRadius: '20px' }}><div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'linear-gradient(135deg, #FF6B6B 0%, #4ECDC4 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: '600', fontSize: '14px' }}>{user.email?.[0].toUpperCase()}</div><span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)' }}>{user.email?.split('@')[0]}</span></div><button onClick={handleSignOut} style={{ padding: '10px 20px', borderRadius: '12px', border: '1px solid rgba(255,255,255,0.2)', background: 'transparent', color: 'rgba(255,255,255,0.7)', fontSize: '14px', fontWeight: '500', cursor: 'pointer' }}>Sign Out</button></div>
-        </header>
-        <div className="main-content" style={{ padding: '24px 32px', maxWidth: '1600px', margin: '0 auto' }}>
-          <div className="main-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 360px', gap: '24px' }}>
-            <div>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px', flexWrap: 'wrap', gap: '12px' }}>
-                <div style={{ display: 'flex', gap: '8px' }}><button onClick={() => setViewMode('day')} style={{ padding: '10px 20px', borderRadius: '10px', border: 'none', background: viewMode === 'day' ? 'rgba(255,107,107,0.2)' : 'rgba(255,255,255,0.05)', color: viewMode === 'day' ? '#FF6B6B' : 'rgba(255,255,255,0.6)', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>Day</button><button onClick={() => setViewMode('week')} style={{ padding: '10px 20px', borderRadius: '10px', border: 'none', background: viewMode === 'week' ? 'rgba(255,107,107,0.2)' : 'rgba(255,255,255,0.05)', color: viewMode === 'week' ? '#FF6B6B' : 'rgba(255,255,255,0.6)', fontWeight: '600', fontSize: '13px', cursor: 'pointer' }}>Week</button></div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}><button onClick={() => navigateWeek(-1)} style={{ width: '36px', height: '36px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#fff', cursor: 'pointer', fontSize: '16px' }}>←</button><button onClick={() => setSelectedDate(today)} style={{ padding: '8px 16px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: selectedDate === today ? 'rgba(255,107,107,0.2)' : 'transparent', color: selectedDate === today ? '#FF6B6B' : 'rgba(255,255,255,0.6)', cursor: 'pointer', fontSize: '13px', fontWeight: '500' }}>Today</button><button onClick={() => navigateWeek(1)} style={{ width: '36px', height: '36px', borderRadius: '10px', border: '1px solid rgba(255,255,255,0.1)', background: 'transparent', color: '#fff', cursor: 'pointer', fontSize: '16px' }}>→</button></div>
-              </div>
-              {viewMode === 'week' ? (
-                <div className="week-grid-container" style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '16px', border: '1px solid rgba(255,255,255,0.05)', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
-                  <div className="week-grid" style={{ display: 'grid', gridTemplateColumns: '50px repeat(7, minmax(50px, 1fr))', gap: '6px', minWidth: '450px' }}>
-                    <div></div>
-                    {weekDates.map(date => (<div key={date} className="day-header" style={{ textAlign: 'center', padding: '8px 4px', background: date === today ? 'rgba(255,107,107,0.2)' : 'transparent', borderRadius: '10px' }}><div className="day-name" style={{ fontSize: '10px', color: date === today ? '#FF6B6B' : 'rgba(255,255,255,0.5)', fontWeight: '600' }}>{getDayName(date)}</div><div className="day-number" style={{ fontSize: '14px', fontWeight: '700', color: date === today ? '#FF6B6B' : '#fff', fontFamily: "'JetBrains Mono', monospace" }}>{new Date(date + 'T00:00:00').getDate()}</div></div>))}
-                    {hours.map(hour => (<React.Fragment key={hour}><div className="time-label" style={{ fontSize: '9px', color: 'rgba(255,255,255,0.4)', fontFamily: "'JetBrains Mono', monospace", paddingTop: '8px', textAlign: 'right', paddingRight: '4px', whiteSpace: 'nowrap' }}>{formatHour(hour)}</div>{weekDates.map(date => { const block = blocks.find(b => b.date === date && b.hour === hour); return (<DroppableCell key={`${date}-${hour}`} date={date} hour={hour} block={block} onCellClick={handleCellClick}>{block && (<div onClick={() => setActiveBlockId(block.id)}><TimeBlock block={block} onUpdate={handleUpdateBlock} onDelete={handleDeleteBlock} isActive={block.id === activeBlockId} isCompact={true} onEdit={setEditingBlock} /></div>)}</DroppableCell>); })}</React.Fragment>))}
+const getBlocksForHour = (blocks, date, hour) => {
+  return blocks.filter(b => b.date === date && b.hour === hour).sort((a, b) => (a.start_minute || 0) - (b.start_minute || 0));
+};
+ className="time-label" style={{ fontSize: '9px', color: 'rgba(255,255,255,0.4)', fontFamily: "'JetBrains Mono', monospace", paddingTop: '8px', textAlign: 'right', paddingRight: '4px', whiteSpace: 'nowrap' }}>{formatHour(hour)}</div>
+                      {weekDates.map(date => { const hourBlocks = getBlocksForHour(blocks, date, hour); return (
+                        <DroppableCell key={`${date}-${hour}`} date={date} hour={hour} blocks={hourBlocks} onCellClick={handleCellClick}>
+                          {hourBlocks.length > 0 ? (<div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>{hourBlocks.map(block => (<div key={block.id} onClick={(e) => { e.stopPropagation(); setActiveBlockId(block.id); }}><TimeBlock block={block} onUpdate={handleUpdateBlock} onDelete={handleDeleteBlock} isActive={block.id === activeBlockId} isCompact={true} onEdit={setEditingBlock} onStartTimer={handleStartTimer} /></div>))}</div>) : null}
+                        </DroppableCell>
+                      ); })}
+                    </React.Fragment>))}
                   </div>
                 </div>
               ) : (
                 <div style={{ background: 'rgba(255,255,255,0.02)', borderRadius: '20px', padding: '24px', border: '1px solid rgba(255,255,255,0.05)' }}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}><h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>Today's Schedule</h2><div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '13px', color: 'rgba(255,255,255,0.4)', background: 'rgba(255,255,255,0.05)', padding: '6px 14px', borderRadius: '16px' }}>{formatDateShort(selectedDate)}</div></div>
-                  <div style={{ maxHeight: '500px', overflowY: 'auto', paddingRight: '8px' }}>{hours.map(hour => { const block = blocks.find(b => b.date === selectedDate && b.hour === hour); const isCurrentHour = hour === currentHour && selectedDate === today; return (<div key={hour} style={{ position: 'relative' }}>{isCurrentHour && <div style={{ position: 'absolute', left: '-12px', top: '50%', transform: 'translateY(-50%)', width: '8px', height: '8px', background: '#FF6B6B', borderRadius: '50%', boxShadow: '0 0 16px #FF6B6B' }} />}{block ? (<div onClick={() => setActiveBlockId(block.id)}><TimeBlock block={block} onUpdate={handleUpdateBlock} onDelete={handleDeleteBlock} isActive={block.id === activeBlockId} onEdit={setEditingBlock} /></div>) : (<DroppableCell date={selectedDate} hour={hour} block={null} onCellClick={handleCellClick}><div style={{ borderRadius: '14px', padding: '14px 18px', marginBottom: '8px', display: 'flex', alignItems: 'center', gap: '14px' }}><span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: 'rgba(255,255,255,0.3)' }}>{formatHour(hour)}</span><span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '13px' }}>+ Add block</span></div></DroppableCell>)}</div>); })}</div>
+                  <div style={{ maxHeight: '500px', overflowY: 'auto', paddingRight: '8px' }}>
+                    {hours.map(hour => { const hourBlocks = getBlocksForHour(blocks, selectedDate, hour); const isCurrentHour = hour === currentHour && selectedDate === today; return (
+                      <div key={hour} style={{ position: 'relative' }}>
+                        {isCurrentHour && <div style={{ position: 'absolute', left: '-12px', top: '50%', transform: 'translateY(-50%)', width: '8px', height: '8px', background: '#FF6B6B', borderRadius: '50%', boxShadow: '0 0 16px #FF6B6B' }} />}
+                        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px', marginBottom: '8px' }}>
+                          <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '11px', color: 'rgba(255,255,255,0.3)', minWidth: '60px', paddingTop: '12px' }}>{formatHour(hour)}</span>
+                          <div style={{ flex: 1 }}>
+                            {hourBlocks.length > 0 && hourBlocks.map(block => (<div key={block.id} onClick={() => setActiveBlockId(block.id)}><TimeBlock block={block} onUpdate={handleUpdateBlock} onDelete={handleDeleteBlock} isActive={block.id === activeBlockId} onEdit={setEditingBlock} onStartTimer={handleStartTimer} /></div>))}
+                            <DroppableCell date={selectedDate} hour={hour} blocks={hourBlocks} onCellClick={handleCellClick}><div style={{ borderRadius: '12px', padding: '10px 14px', display: 'flex', alignItems: 'center', gap: '8px', cursor: 'pointer' }}><span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '13px' }}>+ Add block</span></div></DroppableCell>
+                          </div>
+                        </div>
+                      </div>
+                    ); })}
+                  </div>
                 </div>
               )}
             </div>
             <div className="right-column" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-              <div style={{ position: 'relative' }}><button onClick={() => setShowTimerSettings(true)} style={{ position: 'absolute', top: '16px', right: '16px', background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '8px', padding: '8px 12px', cursor: 'pointer', color: 'rgba(255,255,255,0.6)', fontSize: '14px', zIndex: 10, display: 'flex', alignItems: 'center', gap: '6px' }} title="Timer Settings">⚙️</button><PomodoroTimer onComplete={handlePomodoroComplete} currentTask={activeBlock?.title} preferences={preferences} /></div>
+              <div style={{ position: 'relative' }}><button onClick={() => setShowTimerSettings(true)} style={{ position: 'absolute', top: '16px', right: '16px', background: 'rgba(255,255,255,0.1)', border: 'none', borderRadius: '8px', padding: '8px 12px', cursor: 'pointer', color: 'rgba(255,255,255,0.6)', fontSize: '14px', zIndex: 10, display: 'flex', alignItems: 'center', gap: '6px' }} title="Timer Settings">⚙️</button><PomodoroTimer onComplete={handlePomodoroComplete} currentTask={activeBlock?.title} preferences={preferences} activeBlock={activeBlock} onAddTime={handleAddTime} /></div>
               <AnalyticsDashboard stats={stats} blocks={blocks} />
             </div>
           </div>
         </div>
-        {showModal && <AddBlockModal hour={selectedHour} date={selectedDate} onAdd={handleAddBlock} onClose={() => setShowModal(false)} />}
+        {showModal && <AddBlockModal hour={selectedHour} date={selectedDate} onAdd={handleAddBlock} onClose={() => setShowModal(false)} existingBlocks={getBlocksForHour(blocks, selectedDate, selectedHour)} />}
         {editingBlock && <EditBlockModal block={editingBlock} onUpdate={handleUpdateBlock} onClose={() => setEditingBlock(null)} />}
         {showTimerSettings && <TimerSettingsModal preferences={preferences} onSave={handleSavePreferences} onClose={() => setShowTimerSettings(false)} />}
         <div style={{ position: 'fixed', bottom: '16px', right: '16px', display: 'flex', alignItems: 'center', gap: '6px', background: 'rgba(0,0,0,0.6)', padding: '8px 14px', borderRadius: '16px', backdropFilter: 'blur(10px)' }}><div style={{ width: '6px', height: '6px', borderRadius: '50%', background: isSyncing ? '#FFC75F' : '#4ECDC4', animation: isSyncing ? 'pulse 1s infinite' : 'none' }} /><span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: '10px', color: 'rgba(255,255,255,0.6)' }}>{isSyncing ? 'Syncing...' : 'Synced'}</span></div>
