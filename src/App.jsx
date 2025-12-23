@@ -94,6 +94,33 @@ const calculateRemainingTime = (endTime) => {
 };
 
 // ============================================
+// DRAG AND DROP CONTEXT
+// ============================================
+
+const DragContext = React.createContext(null);
+
+const DragProvider = ({ children, onDrop }) => {
+  const [draggedBlock, setDraggedBlock] = useState(null);
+  const [dropTarget, setDropTarget] = useState(null);
+
+  const value = {
+    draggedBlock,
+    setDraggedBlock,
+    dropTarget,
+    setDropTarget,
+    onDrop
+  };
+
+  return (
+    <DragContext.Provider value={value}>
+      {children}
+    </DragContext.Provider>
+  );
+};
+
+const useDrag = () => React.useContext(DragContext);
+
+// ============================================
 // SOUND HOOK
 // ============================================
 
@@ -235,12 +262,11 @@ const AuthScreen = ({ onSignIn }) => {
         </button>
 
         <p style={{
-          marginTop: '32px',
-          fontSize: '13px',
-          color: 'rgba(255,255,255,0.4)',
-          fontFamily: "'Space Grotesk', sans-serif"
+          color: 'rgba(255,255,255,0.3)',
+          fontSize: '12px',
+          margin: '24px 0 0 0'
         }}>
-          Sign in to sync your data across devices
+          Your data is securely synced across all devices
         </p>
       </div>
     </div>
@@ -248,111 +274,59 @@ const AuthScreen = ({ onSignIn }) => {
 };
 
 // ============================================
-// POMODORO TIMER COMPONENT WITH ABSOLUTE TIME TRACKING
+// POMODORO TIMER COMPONENT
 // ============================================
 
 const PomodoroTimer = ({ onComplete, currentTask, preferences }) => {
-  const durations = {
+  // Get durations from preferences or use defaults
+  const durations = useMemo(() => ({
     work: (preferences?.work_duration || 25) * 60,
-    shortBreak: (preferences?.short_break_duration || 5) * 60,
-    longBreak: (preferences?.long_break_duration || 15) * 60
-  };
+    shortBreak: (preferences?.short_break || 5) * 60,
+    longBreak: (preferences?.long_break || 15) * 60
+  }), [preferences]);
 
+  const modeLabels = { work: 'FOCUS', shortBreak: 'SHORT', longBreak: 'LONG' };
+  const modeColors = { work: '#FF6B6B', shortBreak: '#4ECDC4', longBreak: '#845EC2' };
+  
   const [mode, setMode] = useState('work');
   const [timeLeft, setTimeLeft] = useState(durations.work);
   const [isRunning, setIsRunning] = useState(false);
   const [pomodorosCompleted, setPomodorosCompleted] = useState(0);
-  const [endTime, setEndTime] = useState(null); // Absolute end timestamp
-  const playSound = useSound();
+  const [endTime, setEndTime] = useState(null); // Absolute end time when timer finishes
+  
   const intervalRef = useRef(null);
-  const hasInitialized = useRef(false);
-  
-  const modeColors = {
-    work: '#FF6B6B',
-    shortBreak: '#4ECDC4',
-    longBreak: '#45B7D1'
-  };
-  
-  const modeLabels = {
-    work: 'FOCUS',
-    shortBreak: 'SHORT BREAK',
-    longBreak: 'LONG BREAK'
-  };
+  const playSound = useSound();
 
-  // Initialize from localStorage on mount
+  // Restore timer state on mount
   useEffect(() => {
-    if (hasInitialized.current) return;
-    hasInitialized.current = true;
-    
-    const saved = loadTimerState();
-    if (saved) {
-      setMode(saved.mode || 'work');
-      setPomodorosCompleted(saved.pomodorosCompleted || 0);
+    const savedState = loadTimerState();
+    if (savedState) {
+      setMode(savedState.mode || 'work');
+      setPomodorosCompleted(savedState.pomodorosCompleted || 0);
       
-      if (saved.isRunning && saved.endTime) {
-        const remaining = calculateRemainingTime(saved.endTime);
+      if (savedState.isRunning && savedState.endTime) {
+        // Timer was running - check if it should still be running
+        const remaining = calculateRemainingTime(savedState.endTime);
         if (remaining > 0) {
-          setEndTime(saved.endTime);
+          setEndTime(savedState.endTime);
           setTimeLeft(remaining);
           setIsRunning(true);
         } else {
-          // Timer completed while away
-          handleTimerComplete(saved.mode, saved.pomodorosCompleted);
+          // Timer would have completed while away
+          const newDuration = durations[savedState.mode] || durations.work;
+          setTimeLeft(newDuration);
+          setIsRunning(false);
+          // Could trigger completion here if desired
         }
       } else {
-        setTimeLeft(saved.timeLeft || durations[saved.mode || 'work']);
+        // Timer was paused
+        setTimeLeft(savedState.timeLeft || durations[savedState.mode] || durations.work);
+        setIsRunning(false);
       }
     }
     
     requestNotificationPermission();
   }, []);
-
-  // Handle timer completion
-  const handleTimerComplete = useCallback((completedMode, currentPomodoros) => {
-    playSound('complete');
-    setIsRunning(false);
-    setEndTime(null);
-    
-    if (completedMode === 'work') {
-      const newCount = currentPomodoros + 1;
-      setPomodorosCompleted(newCount);
-      onComplete && onComplete();
-      notify('🍅 Pomodoro Complete!', `Great work! Time for a ${newCount % 4 === 0 ? 'long' : 'short'} break.`);
-      
-      if (newCount % 4 === 0) {
-        setMode('longBreak');
-        setTimeLeft(durations.longBreak);
-      } else {
-        setMode('shortBreak');
-        setTimeLeft(durations.shortBreak);
-      }
-    } else {
-      notify('⏰ Break Over!', 'Ready to focus again?');
-      setMode('work');
-      setTimeLeft(durations.work);
-    }
-  }, [playSound, onComplete, durations]);
-
-  // Main timer tick using absolute time
-  useEffect(() => {
-    if (isRunning && endTime) {
-      const tick = () => {
-        const remaining = calculateRemainingTime(endTime);
-        setTimeLeft(remaining);
-        
-        if (remaining <= 0) {
-          clearInterval(intervalRef.current);
-          handleTimerComplete(mode, pomodorosCompleted);
-        }
-      };
-      
-      // Tick immediately, then every 100ms for smoother updates
-      tick();
-      intervalRef.current = setInterval(tick, 100);
-      
-      return () => clearInterval(intervalRef.current);
-    }
-  }, [isRunning, endTime, mode, pomodorosCompleted, handleTimerComplete]);
 
   // Save state whenever it changes
   useEffect(() => {
@@ -365,36 +339,47 @@ const PomodoroTimer = ({ onComplete, currentTask, preferences }) => {
     });
   }, [mode, timeLeft, isRunning, pomodorosCompleted, endTime]);
 
-  // Update document title
+  // Timer interval effect - uses absolute time for accuracy
   useEffect(() => {
-    if (isRunning) {
-      document.title = `${formatTime(timeLeft)} - ${modeLabels[mode]} | TimeFlow`;
-    } else {
-      document.title = 'TimeFlow - Pomodoro Time Blocking';
-    }
-    return () => { document.title = 'TimeFlow - Pomodoro Time Blocking'; };
-  }, [timeLeft, isRunning, mode]);
-
-  // Handle visibility change - sync time when tab becomes visible
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible' && isRunning && endTime) {
+    if (isRunning && endTime) {
+      intervalRef.current = setInterval(() => {
         const remaining = calculateRemainingTime(endTime);
+        setTimeLeft(remaining);
+        
         if (remaining <= 0) {
-          handleTimerComplete(mode, pomodorosCompleted);
-        } else {
-          setTimeLeft(remaining);
+          clearInterval(intervalRef.current);
+          setIsRunning(false);
+          setEndTime(null);
+          playSound('complete');
+          
+          if (mode === 'work') {
+            setPomodorosCompleted(prev => prev + 1);
+            notify('Pomodoro Complete! 🍅', 'Time for a break!');
+            onComplete?.();
+            setMode('shortBreak');
+            setTimeLeft(durations.shortBreak);
+          } else {
+            notify('Break Over!', 'Ready to focus again?');
+            setMode('work');
+            setTimeLeft(durations.work);
+          }
         }
-      }
-    };
+      }, 100); // Check more frequently for smoother updates
+    }
+    
+    return () => clearInterval(intervalRef.current);
+  }, [isRunning, endTime, mode, durations, playSound, onComplete]);
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
-  }, [isRunning, endTime, mode, pomodorosCompleted, handleTimerComplete]);
+  // Update timeLeft when durations change (preferences update)
+  useEffect(() => {
+    if (!isRunning) {
+      setTimeLeft(durations[mode]);
+    }
+  }, [durations, mode, isRunning]);
 
   const toggleTimer = () => {
     if (!isRunning) {
-      // Starting timer - set absolute end time
+      // Starting timer - calculate absolute end time
       playSound('start');
       const newEndTime = Date.now() + (timeLeft * 1000);
       setEndTime(newEndTime);
@@ -594,21 +579,27 @@ const PomodoroTimer = ({ onComplete, currentTask, preferences }) => {
 };
 
 // ============================================
-// TIME BLOCK COMPONENT
+// CATEGORY COLORS (Shared)
 // ============================================
 
-const TimeBlock = ({ block, onUpdate, onDelete, isActive, isCompact }) => {
+const categoryColors = {
+  work: { bg: '#FF6B6B', text: '#fff' },
+  meeting: { bg: '#845EC2', text: '#fff' },
+  break: { bg: '#4ECDC4', text: '#fff' },
+  personal: { bg: '#FFC75F', text: '#1a1a2e' },
+  learning: { bg: '#00C9A7', text: '#fff' },
+  exercise: { bg: '#FF9671', text: '#fff' }
+};
+
+// ============================================
+// DRAGGABLE TIME BLOCK COMPONENT
+// ============================================
+
+const TimeBlock = ({ block, onUpdate, onDelete, isActive, isCompact, onEdit }) => {
   const [isEditing, setIsEditing] = useState(false);
   const [editedTitle, setEditedTitle] = useState(block.title);
-  
-  const categoryColors = {
-    work: { bg: '#FF6B6B', text: '#fff' },
-    meeting: { bg: '#845EC2', text: '#fff' },
-    break: { bg: '#4ECDC4', text: '#fff' },
-    personal: { bg: '#FFC75F', text: '#1a1a2e' },
-    learning: { bg: '#00C9A7', text: '#fff' },
-    exercise: { bg: '#FF9671', text: '#fff' }
-  };
+  const dragContext = useDrag();
+  const blockRef = useRef(null);
   
   const colors = categoryColors[block.category] || categoryColors.work;
 
@@ -622,15 +613,53 @@ const TimeBlock = ({ block, onUpdate, onDelete, isActive, isCompact }) => {
     onUpdate({ ...block, completed: !block.completed });
   };
 
+  const handleDragStart = (e) => {
+    e.stopPropagation();
+    dragContext?.setDraggedBlock(block);
+    e.dataTransfer.effectAllowed = 'move';
+    e.dataTransfer.setData('text/plain', block.id);
+    
+    // Add drag styling
+    setTimeout(() => {
+      if (blockRef.current) {
+        blockRef.current.style.opacity = '0.5';
+      }
+    }, 0);
+  };
+
+  const handleDragEnd = (e) => {
+    dragContext?.setDraggedBlock(null);
+    if (blockRef.current) {
+      blockRef.current.style.opacity = '1';
+    }
+  };
+
+  const handleDoubleClick = (e) => {
+    e.stopPropagation();
+    if (onEdit) {
+      onEdit(block);
+    }
+  };
+
   if (isCompact) {
     return (
-      <div style={{
-        background: block.completed ? 'rgba(78,205,196,0.2)' : `${colors.bg}20`,
-        borderRadius: '8px',
-        padding: '8px 12px',
-        borderLeft: `3px solid ${block.completed ? '#4ECDC4' : colors.bg}`,
-        opacity: block.completed ? 0.7 : 1
-      }}>
+      <div
+        ref={blockRef}
+        draggable
+        onDragStart={handleDragStart}
+        onDragEnd={handleDragEnd}
+        onDoubleClick={handleDoubleClick}
+        style={{
+          background: block.completed ? 'rgba(78,205,196,0.2)' : `${colors.bg}20`,
+          borderRadius: '8px',
+          padding: '8px 12px',
+          borderLeft: `3px solid ${block.completed ? '#4ECDC4' : colors.bg}`,
+          opacity: block.completed ? 0.7 : 1,
+          cursor: 'grab',
+          transition: 'all 0.2s ease',
+          transform: dragContext?.draggedBlock?.id === block.id ? 'scale(1.02)' : 'scale(1)'
+        }}
+      >
         <div style={{
           fontSize: '12px',
           fontWeight: '600',
@@ -638,8 +667,12 @@ const TimeBlock = ({ block, onUpdate, onDelete, isActive, isCompact }) => {
           textDecoration: block.completed ? 'line-through' : 'none',
           whiteSpace: 'nowrap',
           overflow: 'hidden',
-          textOverflow: 'ellipsis'
+          textOverflow: 'ellipsis',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px'
         }}>
+          <span style={{ cursor: 'grab', opacity: 0.5 }}>⋮⋮</span>
           {block.title || 'Untitled'}
         </div>
         <div style={{
@@ -655,6 +688,11 @@ const TimeBlock = ({ block, onUpdate, onDelete, isActive, isCompact }) => {
 
   return (
     <div
+      ref={blockRef}
+      draggable
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDoubleClick={handleDoubleClick}
       style={{
         background: isActive 
           ? `linear-gradient(135deg, ${colors.bg} 0%, ${colors.bg}dd 100%)`
@@ -664,12 +702,27 @@ const TimeBlock = ({ block, onUpdate, onDelete, isActive, isCompact }) => {
         marginBottom: '10px',
         border: isActive ? 'none' : `1px solid ${block.completed ? 'rgba(78,205,196,0.3)' : 'rgba(255,255,255,0.08)'}`,
         transition: 'all 0.3s ease',
-        cursor: 'pointer',
-        opacity: block.completed && !isActive ? 0.7 : 1
+        cursor: 'grab',
+        opacity: block.completed && !isActive ? 0.7 : 1,
+        transform: dragContext?.draggedBlock?.id === block.id ? 'scale(1.02)' : 'scale(1)'
       }}
     >
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' }}>
         <div style={{ flex: 1, display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+          {/* Drag handle */}
+          <div style={{
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            color: 'rgba(255,255,255,0.3)',
+            cursor: 'grab',
+            padding: '4px',
+            marginRight: '-4px'
+          }}>
+            <span style={{ fontSize: '14px', lineHeight: 1 }}>⋮⋮</span>
+          </div>
+          
           <button
             onClick={handleComplete}
             style={{
@@ -730,6 +783,7 @@ const TimeBlock = ({ block, onUpdate, onDelete, isActive, isCompact }) => {
                 onBlur={handleSave}
                 onKeyPress={(e) => e.key === 'Enter' && handleSave()}
                 autoFocus
+                onClick={(e) => e.stopPropagation()}
                 style={{
                   background: 'rgba(0,0,0,0.2)',
                   border: '1px solid rgba(255,255,255,0.2)',
@@ -744,7 +798,7 @@ const TimeBlock = ({ block, onUpdate, onDelete, isActive, isCompact }) => {
               />
             ) : (
               <div
-                onClick={() => setIsEditing(true)}
+                onClick={(e) => { e.stopPropagation(); setIsEditing(true); }}
                 style={{
                   fontSize: '16px',
                   fontWeight: '600',
@@ -759,20 +813,314 @@ const TimeBlock = ({ block, onUpdate, onDelete, isActive, isCompact }) => {
           </div>
         </div>
         
-        <button
-          onClick={(e) => { e.stopPropagation(); onDelete(block.id); }}
-          style={{
-            background: 'rgba(255,255,255,0.1)',
-            border: 'none',
-            borderRadius: '6px',
-            padding: '6px 8px',
-            cursor: 'pointer',
-            color: 'rgba(255,255,255,0.5)',
-            fontSize: '14px'
-          }}
-        >
-          ×
-        </button>
+        <div style={{ display: 'flex', gap: '6px' }}>
+          <button
+            onClick={(e) => { e.stopPropagation(); onEdit?.(block); }}
+            style={{
+              background: 'rgba(255,255,255,0.1)',
+              border: 'none',
+              borderRadius: '6px',
+              padding: '6px 8px',
+              cursor: 'pointer',
+              color: 'rgba(255,255,255,0.5)',
+              fontSize: '12px'
+            }}
+            title="Edit block"
+          >
+            ✏️
+          </button>
+          <button
+            onClick={(e) => { e.stopPropagation(); onDelete(block.id); }}
+            style={{
+              background: 'rgba(255,255,255,0.1)',
+              border: 'none',
+              borderRadius: '6px',
+              padding: '6px 8px',
+              cursor: 'pointer',
+              color: 'rgba(255,255,255,0.5)',
+              fontSize: '14px'
+            }}
+            title="Delete block"
+          >
+            ×
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// ============================================
+// DROPPABLE CELL COMPONENT
+// ============================================
+
+const DroppableCell = ({ date, hour, block, onCellClick, children }) => {
+  const dragContext = useDrag();
+  const [isDragOver, setIsDragOver] = useState(false);
+
+  const handleDragOver = (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+    if (!isDragOver) {
+      setIsDragOver(true);
+      dragContext?.setDropTarget({ date, hour });
+    }
+  };
+
+  const handleDragLeave = (e) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    dragContext?.setDropTarget(null);
+  };
+
+  const handleDrop = (e) => {
+    e.preventDefault();
+    setIsDragOver(false);
+    
+    const draggedBlock = dragContext?.draggedBlock;
+    if (draggedBlock && dragContext?.onDrop) {
+      // Only drop if it's a different position
+      if (draggedBlock.date !== date || draggedBlock.hour !== hour) {
+        dragContext.onDrop(draggedBlock, { date, hour });
+      }
+    }
+    
+    dragContext?.setDraggedBlock(null);
+    dragContext?.setDropTarget(null);
+  };
+
+  const handleClick = () => {
+    if (!block) {
+      onCellClick(date, hour);
+    }
+  };
+
+  return (
+    <div
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+      onClick={handleClick}
+      style={{
+        minHeight: '44px',
+        borderRadius: '6px',
+        border: isDragOver 
+          ? '2px dashed #4ECDC4' 
+          : '1px dashed rgba(255,255,255,0.1)',
+        cursor: 'pointer',
+        transition: 'all 0.2s ease',
+        padding: '3px',
+        background: isDragOver ? 'rgba(78,205,196,0.1)' : 'transparent'
+      }}
+    >
+      {children}
+    </div>
+  );
+};
+
+// ============================================
+// EDIT BLOCK MODAL
+// ============================================
+
+const EditBlockModal = ({ block, onUpdate, onClose }) => {
+  const [title, setTitle] = useState(block.title || '');
+  const [category, setCategory] = useState(block.category);
+  const [hour, setHour] = useState(block.hour);
+  
+  const categories = ['work', 'meeting', 'break', 'personal', 'learning', 'exercise'];
+  const hours = Array.from({ length: 16 }, (_, i) => i + 6);
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    onUpdate({
+      ...block,
+      title,
+      category,
+      hour
+    });
+    onClose();
+  };
+
+  return (
+    <div 
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.7)',
+        backdropFilter: 'blur(8px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+        padding: '20px'
+      }}
+      onClick={onClose}
+    >
+      <div 
+        style={{
+          background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+          borderRadius: '24px',
+          padding: '32px',
+          width: '100%',
+          maxWidth: '420px',
+          border: '1px solid rgba(255,255,255,0.08)'
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 style={{
+          margin: '0 0 24px 0',
+          fontSize: '24px',
+          fontWeight: '700',
+          color: '#fff',
+          fontFamily: "'Space Grotesk', sans-serif"
+        }}>
+          Edit Block
+        </h2>
+
+        <form onSubmit={handleSubmit}>
+          {/* Title */}
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{
+              display: 'block',
+              marginBottom: '8px',
+              color: 'rgba(255,255,255,0.6)',
+              fontSize: '13px',
+              fontFamily: "'Space Grotesk', sans-serif"
+            }}>
+              Task Title
+            </label>
+            <input
+              type="text"
+              value={title}
+              onChange={(e) => setTitle(e.target.value)}
+              placeholder="What are you working on?"
+              style={{
+                width: '100%',
+                padding: '14px 16px',
+                borderRadius: '12px',
+                border: '1px solid rgba(255,255,255,0.1)',
+                background: 'rgba(255,255,255,0.05)',
+                color: '#fff',
+                fontSize: '15px',
+                fontFamily: "'Space Grotesk', sans-serif",
+                outline: 'none',
+                boxSizing: 'border-box'
+              }}
+            />
+          </div>
+
+          {/* Time */}
+          <div style={{ marginBottom: '20px' }}>
+            <label style={{
+              display: 'block',
+              marginBottom: '8px',
+              color: 'rgba(255,255,255,0.6)',
+              fontSize: '13px',
+              fontFamily: "'Space Grotesk', sans-serif"
+            }}>
+              Time
+            </label>
+            <select
+              value={hour}
+              onChange={(e) => setHour(parseInt(e.target.value))}
+              style={{
+                width: '100%',
+                padding: '14px 16px',
+                borderRadius: '12px',
+                border: '1px solid rgba(255,255,255,0.1)',
+                background: 'rgba(255,255,255,0.05)',
+                color: '#fff',
+                fontSize: '15px',
+                fontFamily: "'Space Grotesk', sans-serif",
+                outline: 'none',
+                boxSizing: 'border-box',
+                cursor: 'pointer'
+              }}
+            >
+              {hours.map(h => (
+                <option key={h} value={h} style={{ background: '#1a1a2e', color: '#fff' }}>
+                  {formatHour(h)}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Category */}
+          <div style={{ marginBottom: '24px' }}>
+            <label style={{
+              display: 'block',
+              marginBottom: '12px',
+              color: 'rgba(255,255,255,0.6)',
+              fontSize: '13px',
+              fontFamily: "'Space Grotesk', sans-serif"
+            }}>
+              Category
+            </label>
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {categories.map(cat => (
+                <button
+                  key={cat}
+                  type="button"
+                  onClick={() => setCategory(cat)}
+                  style={{
+                    padding: '10px 16px',
+                    borderRadius: '20px',
+                    border: 'none',
+                    background: category === cat ? categoryColors[cat].bg : 'rgba(255,255,255,0.05)',
+                    color: category === cat ? categoryColors[cat].text : 'rgba(255,255,255,0.6)',
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    textTransform: 'capitalize',
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    fontFamily: "'Space Grotesk', sans-serif"
+                  }}
+                >
+                  {cat}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Buttons */}
+          <div style={{ display: 'flex', gap: '12px' }}>
+            <button
+              type="button"
+              onClick={onClose}
+              style={{
+                flex: 1,
+                padding: '14px',
+                borderRadius: '12px',
+                border: '1px solid rgba(255,255,255,0.2)',
+                background: 'transparent',
+                color: 'rgba(255,255,255,0.7)',
+                fontSize: '15px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                fontFamily: "'Space Grotesk', sans-serif"
+              }}
+            >
+              Cancel
+            </button>
+            <button
+              type="submit"
+              style={{
+                flex: 1,
+                padding: '14px',
+                borderRadius: '12px',
+                border: 'none',
+                background: 'linear-gradient(135deg, #FF6B6B 0%, #FF8E8E 100%)',
+                color: '#fff',
+                fontSize: '15px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                fontFamily: "'Space Grotesk', sans-serif"
+              }}
+            >
+              Save Changes
+            </button>
+          </div>
+        </form>
       </div>
     </div>
   );
@@ -799,13 +1147,11 @@ const AddBlockModal = ({ hour, date, onAdd, onClose }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     onAdd({
-      hour,
       title,
       category,
-      duration,
+      hour,
       date,
-      pomodoro_count: 0,
-      completed: false,
+      duration,
       is_recurring: isRecurring,
       recurrence_pattern: isRecurring ? recurrencePattern : null
     });
@@ -813,93 +1159,101 @@ const AddBlockModal = ({ hour, date, onAdd, onClose }) => {
   };
 
   return (
-    <div style={{
-      position: 'fixed',
-      inset: 0,
-      background: 'rgba(0,0,0,0.8)',
-      display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'center',
-      zIndex: 1000,
-      backdropFilter: 'blur(10px)',
-      padding: '20px'
-    }}>
-      <div style={{
-        background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
-        borderRadius: '24px',
-        padding: '32px',
-        width: '420px',
-        maxWidth: '100%',
-        maxHeight: '90vh',
-        overflowY: 'auto',
-        border: '1px solid rgba(255,255,255,0.1)'
-      }}>
-        <h3 style={{
+    <div 
+      style={{
+        position: 'fixed',
+        inset: 0,
+        background: 'rgba(0,0,0,0.7)',
+        backdropFilter: 'blur(8px)',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        zIndex: 1000,
+        padding: '20px'
+      }}
+      onClick={onClose}
+    >
+      <div 
+        style={{
+          background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+          borderRadius: '24px',
+          padding: '32px',
+          width: '100%',
+          maxWidth: '420px',
+          border: '1px solid rgba(255,255,255,0.08)'
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <h2 style={{
           margin: '0 0 24px 0',
-          fontFamily: "'Space Grotesk', sans-serif",
           fontSize: '24px',
           fontWeight: '700',
-          color: '#fff'
+          color: '#fff',
+          fontFamily: "'Space Grotesk', sans-serif"
         }}>
           Add Time Block
-        </h3>
-        
+        </h2>
+
         <form onSubmit={handleSubmit}>
           <div style={{ marginBottom: '20px' }}>
             <label style={{
               display: 'block',
               marginBottom: '8px',
-              fontFamily: "'Space Grotesk', sans-serif",
-              fontSize: '14px',
-              color: 'rgba(255,255,255,0.6)'
+              color: 'rgba(255,255,255,0.6)',
+              fontSize: '13px',
+              fontFamily: "'Space Grotesk', sans-serif"
             }}>
-              Task Name
+              Task Title
             </label>
             <input
+              type="text"
               value={title}
               onChange={(e) => setTitle(e.target.value)}
               placeholder="What are you working on?"
+              autoFocus
               style={{
                 width: '100%',
                 padding: '14px 16px',
-                background: 'rgba(0,0,0,0.3)',
-                border: '1px solid rgba(255,255,255,0.1)',
                 borderRadius: '12px',
+                border: '1px solid rgba(255,255,255,0.1)',
+                background: 'rgba(255,255,255,0.05)',
                 color: '#fff',
-                fontSize: '16px',
+                fontSize: '15px',
                 fontFamily: "'Space Grotesk', sans-serif",
                 outline: 'none',
                 boxSizing: 'border-box'
               }}
             />
           </div>
-          
+
           <div style={{ marginBottom: '20px' }}>
             <label style={{
               display: 'block',
               marginBottom: '12px',
-              fontFamily: "'Space Grotesk', sans-serif",
-              fontSize: '14px',
-              color: 'rgba(255,255,255,0.6)'
+              color: 'rgba(255,255,255,0.6)',
+              fontSize: '13px',
+              fontFamily: "'Space Grotesk', sans-serif"
             }}>
               Category
             </label>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '8px' }}>
-              {categories.map((cat) => (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+              {categories.map(cat => (
                 <button
                   key={cat}
                   type="button"
                   onClick={() => setCategory(cat)}
                   style={{
-                    padding: '10px 12px',
-                    borderRadius: '10px',
-                    border: category === cat ? '2px solid #FF6B6B' : '1px solid rgba(255,255,255,0.1)',
-                    background: category === cat ? 'rgba(255,107,107,0.2)' : 'rgba(0,0,0,0.2)',
-                    color: '#fff',
+                    padding: '10px 16px',
+                    borderRadius: '20px',
+                    border: 'none',
+                    background: category === cat ? categoryColors[cat].bg : 'rgba(255,255,255,0.05)',
+                    color: category === cat ? categoryColors[cat].text : 'rgba(255,255,255,0.6)',
                     fontSize: '13px',
-                    fontFamily: "'Space Grotesk', sans-serif",
+                    fontWeight: '600',
                     textTransform: 'capitalize',
-                    cursor: 'pointer'
+                    cursor: 'pointer',
+                    transition: 'all 0.2s ease',
+                    fontFamily: "'Space Grotesk', sans-serif"
                   }}
                 >
                   {cat}
@@ -912,53 +1266,43 @@ const AddBlockModal = ({ hour, date, onAdd, onClose }) => {
             <label style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '12px',
-              cursor: 'pointer'
+              gap: '10px',
+              cursor: 'pointer',
+              color: 'rgba(255,255,255,0.7)',
+              fontSize: '14px',
+              fontFamily: "'Space Grotesk', sans-serif"
             }}>
               <input
                 type="checkbox"
                 checked={isRecurring}
                 onChange={(e) => setIsRecurring(e.target.checked)}
-                style={{ width: '18px', height: '18px', accentColor: '#FF6B6B' }}
+                style={{ width: '18px', height: '18px', cursor: 'pointer' }}
               />
-              <span style={{
-                fontFamily: "'Space Grotesk', sans-serif",
-                fontSize: '14px',
-                color: 'rgba(255,255,255,0.8)'
-              }}>
-                🔄 Make this a recurring task
-              </span>
+              🔄 Make this recurring
             </label>
           </div>
 
           {isRecurring && (
             <div style={{ marginBottom: '20px' }}>
-              <label style={{
-                display: 'block',
-                marginBottom: '8px',
-                fontFamily: "'Space Grotesk', sans-serif",
-                fontSize: '14px',
-                color: 'rgba(255,255,255,0.6)'
-              }}>
-                Repeat
-              </label>
               <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
-                {recurrenceOptions.map((opt) => (
+                {recurrenceOptions.map(opt => (
                   <button
                     key={opt.value}
                     type="button"
                     onClick={() => setRecurrencePattern(opt.value)}
                     style={{
-                      flex: 1,
-                      minWidth: '90px',
-                      padding: '10px',
-                      borderRadius: '10px',
-                      border: recurrencePattern === opt.value ? '2px solid #4ECDC4' : '1px solid rgba(255,255,255,0.1)',
-                      background: recurrencePattern === opt.value ? 'rgba(78,205,196,0.2)' : 'rgba(0,0,0,0.2)',
-                      color: '#fff',
-                      fontSize: '12px',
-                      fontFamily: "'Space Grotesk', sans-serif",
-                      cursor: 'pointer'
+                      padding: '10px 16px',
+                      borderRadius: '20px',
+                      border: 'none',
+                      background: recurrencePattern === opt.value 
+                        ? 'rgba(78,205,196,0.3)'
+                        : 'rgba(255,255,255,0.05)',
+                      color: recurrencePattern === opt.value ? '#4ECDC4' : 'rgba(255,255,255,0.6)',
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      fontFamily: "'Space Grotesk', sans-serif"
                     }}
                   >
                     {opt.label}
@@ -967,8 +1311,8 @@ const AddBlockModal = ({ hour, date, onAdd, onClose }) => {
               </div>
             </div>
           )}
-          
-          <div style={{ display: 'flex', gap: '12px', marginTop: '28px' }}>
+
+          <div style={{ display: 'flex', gap: '12px' }}>
             <button
               type="button"
               onClick={onClose}
@@ -981,8 +1325,8 @@ const AddBlockModal = ({ hour, date, onAdd, onClose }) => {
                 color: 'rgba(255,255,255,0.7)',
                 fontSize: '15px',
                 fontWeight: '600',
-                fontFamily: "'Space Grotesk', sans-serif",
-                cursor: 'pointer'
+                cursor: 'pointer',
+                fontFamily: "'Space Grotesk', sans-serif"
               }}
             >
               Cancel
@@ -998,63 +1342,67 @@ const AddBlockModal = ({ hour, date, onAdd, onClose }) => {
                 color: '#fff',
                 fontSize: '15px',
                 fontWeight: '600',
-                fontFamily: "'Space Grotesk', sans-serif",
-                cursor: 'pointer'
+                cursor: 'pointer',
+                fontFamily: "'Space Grotesk', sans-serif"
               }}
             >
               Add Block
             </button>
           </div>
         </form>
+
+        <div style={{
+          marginTop: '16px',
+          padding: '12px 16px',
+          background: 'rgba(255,255,255,0.03)',
+          borderRadius: '12px',
+          fontFamily: "'JetBrains Mono', monospace",
+          fontSize: '12px',
+          color: 'rgba(255,255,255,0.4)',
+          textAlign: 'center'
+        }}>
+          {formatHour(hour)} on {formatDateShort(date)}
+        </div>
       </div>
     </div>
   );
 };
 
 // ============================================
-// ANALYTICS DASHBOARD
+// ANALYTICS DASHBOARD COMPONENT
 // ============================================
 
 const AnalyticsDashboard = ({ stats, weeklyData, blocks }) => {
-  const categoryColors = {
-    work: '#FF6B6B',
-    meeting: '#845EC2',
-    break: '#4ECDC4',
-    personal: '#FFC75F',
-    learning: '#00C9A7',
-    exercise: '#FF9671'
-  };
+  const todayPomodoros = stats.reduce((sum, s) => sum + (s.pomodoros_completed || 0), 0);
+  const completedBlocks = blocks.filter(b => b.completed).length;
+  const totalBlocks = blocks.length;
 
-  const totalPomodoros = stats.reduce((acc, s) => acc + (s.pomodoros_completed || 0), 0);
-  const totalFocusHours = Math.round(stats.reduce((acc, s) => acc + (s.focus_minutes || 0), 0) / 60 * 10) / 10;
-  const completedTasks = blocks.filter(b => b.completed).length;
-  const totalTasks = blocks.length;
-  
   const categoryBreakdown = useMemo(() => {
     const breakdown = {};
-    blocks.forEach(b => {
-      breakdown[b.category] = (breakdown[b.category] || 0) + 1;
+    blocks.forEach(block => {
+      breakdown[block.category] = (breakdown[block.category] || 0) + 1;
     });
     return breakdown;
   }, [blocks]);
 
+  // Daily pomodoros for the week
   const dailyPomodoros = useMemo(() => {
     const days = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
     return days.map((day, i) => {
-      const dayStats = stats[i];
-      return {
-        day,
-        pomodoros: dayStats?.pomodoros_completed || 0
-      };
+      const dayStats = stats.find(s => {
+        const date = new Date(s.date);
+        return date.getDay() === (i + 1) % 7;
+      });
+      return { day, pomodoros: dayStats?.pomodoros_completed || 0 };
     });
   }, [stats]);
 
   const maxPomodoros = Math.max(...dailyPomodoros.map(d => d.pomodoros), 1);
 
   return (
-    <div className="analytics-container" style={{
+    <div style={{
       background: 'rgba(255,255,255,0.02)',
-      borderRadius: '24px',
+      borderRadius: '20px',
       padding: '24px',
       border: '1px solid rgba(255,255,255,0.05)'
     }}>
@@ -1062,37 +1410,35 @@ const AnalyticsDashboard = ({ stats, weeklyData, blocks }) => {
         margin: '0 0 20px 0',
         fontSize: '18px',
         fontWeight: '600',
-        color: 'rgba(255,255,255,0.9)',
+        color: '#fff',
         fontFamily: "'Space Grotesk', sans-serif"
       }}>
-        📊 Weekly Analytics
+        📊 Analytics
       </h2>
 
       {/* Stats Grid */}
-      <div className="stats-grid" style={{
+      <div style={{
         display: 'grid',
-        gridTemplateColumns: 'repeat(4, 1fr)',
+        gridTemplateColumns: 'repeat(3, 1fr)',
         gap: '12px',
         marginBottom: '24px'
       }}>
         {[
-          { label: 'Pomodoros', value: totalPomodoros, icon: '🍅', color: '#FF6B6B' },
-          { label: 'Focus Hours', value: totalFocusHours, icon: '⏱️', color: '#4ECDC4' },
-          { label: 'Completed', value: completedTasks, icon: '✓', color: '#00C9A7' },
-          { label: 'Tasks', value: totalTasks, icon: '📋', color: '#845EC2' }
+          { value: todayPomodoros, label: 'Pomodoros', color: '#FF6B6B' },
+          { value: completedBlocks, label: 'Completed', color: '#4ECDC4' },
+          { value: totalBlocks, label: 'Total Blocks', color: '#845EC2' }
         ].map((stat, i) => (
           <div key={i} style={{
-            background: 'rgba(0,0,0,0.2)',
+            background: `${stat.color}10`,
             borderRadius: '12px',
-            padding: '12px 8px',
+            padding: '16px',
             textAlign: 'center'
           }}>
-            <div style={{ fontSize: '16px', marginBottom: '4px' }}>{stat.icon}</div>
             <div style={{
-              fontFamily: "'JetBrains Mono', monospace",
-              fontSize: '18px',
+              fontSize: '28px',
               fontWeight: '700',
-              color: stat.color
+              color: stat.color,
+              fontFamily: "'JetBrains Mono', monospace"
             }}>
               {stat.value}
             </div>
@@ -1161,7 +1507,7 @@ const AnalyticsDashboard = ({ stats, weeklyData, blocks }) => {
               display: 'flex',
               alignItems: 'center',
               gap: '6px',
-              background: `${categoryColors[cat]}20`,
+              background: `${categoryColors[cat].bg}20`,
               padding: '6px 10px',
               borderRadius: '16px'
             }}>
@@ -1169,7 +1515,7 @@ const AnalyticsDashboard = ({ stats, weeklyData, blocks }) => {
                 width: '8px',
                 height: '8px',
                 borderRadius: '50%',
-                background: categoryColors[cat]
+                background: categoryColors[cat].bg
               }} />
               <span style={{
                 fontSize: '11px',
@@ -1203,6 +1549,7 @@ export default function App() {
   const [viewMode, setViewMode] = useState('week'); // 'day' or 'week'
   const [activeBlockId, setActiveBlockId] = useState(null);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [editingBlock, setEditingBlock] = useState(null);
 
   const today = new Date().toISOString().split('T')[0];
   const weekDates = useMemo(() => getWeekDates(selectedDate), [selectedDate]);
@@ -1291,6 +1638,19 @@ export default function App() {
     setIsSyncing(false);
   };
 
+  // Handle drag and drop
+  const handleBlockDrop = async (draggedBlock, dropTarget) => {
+    if (!user) return;
+    
+    const updatedBlock = {
+      ...draggedBlock,
+      date: dropTarget.date,
+      hour: dropTarget.hour
+    };
+    
+    await handleUpdateBlock(updatedBlock);
+  };
+
   const handlePomodoroComplete = async () => {
     if (!user) return;
     
@@ -1321,6 +1681,12 @@ export default function App() {
     setSelectedDate(current.toISOString().split('T')[0]);
   };
 
+  const handleCellClick = (date, hour) => {
+    setSelectedHour(hour);
+    setSelectedDate(date);
+    setShowModal(true);
+  };
+
   const activeBlock = blocks.find(b => b.id === activeBlockId);
   const hours = Array.from({ length: 16 }, (_, i) => i + 6);
 
@@ -1349,486 +1715,466 @@ export default function App() {
 
   // Main app
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%)',
-      fontFamily: "'Space Grotesk', sans-serif",
-      color: '#fff',
-      padding: '16px 12px'
-    }}>
-      <style>{`
-        @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;600;700&family=Space+Grotesk:wght@400;500;600;700&display=swap');
-        * { box-sizing: border-box; }
-        ::-webkit-scrollbar { width: 6px; }
-        ::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); border-radius: 4px; }
-        ::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.2); border-radius: 4px; }
-        @keyframes pulse {
-          0%, 100% { opacity: 1; }
-          50% { opacity: 0.5; }
-        }
-        
-        /* Mobile Responsive Styles */
-        @media (max-width: 900px) {
-          .main-layout {
-            grid-template-columns: 1fr !important;
+    <DragProvider onDrop={handleBlockDrop}>
+      <div style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #0f0f1a 0%, #1a1a2e 50%, #16213e 100%)',
+        color: '#fff',
+        fontFamily: "'Space Grotesk', sans-serif"
+      }}>
+        {/* CSS for animations */}
+        <style>{`
+          @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
           }
-          .right-column {
-            order: -1;
+          @media (max-width: 900px) {
+            .main-grid {
+              grid-template-columns: 1fr !important;
+            }
+            .right-column {
+              order: -1;
+            }
           }
-          .header-content {
-            flex-wrap: wrap;
-            gap: 12px;
+          .time-block-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 25px rgba(0,0,0,0.3);
           }
-          .header-left {
-            width: 100%;
-            text-align: center;
+          .drag-over {
+            border-color: #4ECDC4 !important;
+            background: rgba(78,205,196,0.1) !important;
           }
-          .header-right {
-            width: 100%;
-            justify-content: center;
-            flex-wrap: wrap;
-          }
-          .user-menu {
-            order: -1;
-            width: 100%;
-            justify-content: center;
-          }
-          .week-nav {
-            flex-direction: column;
-            gap: 12px;
-            align-items: stretch;
-          }
-          .week-nav-buttons {
-            display: flex;
-            justify-content: space-between;
-          }
-          .week-nav-date {
-            text-align: center;
-          }
-          .stats-grid {
-            grid-template-columns: repeat(2, 1fr) !important;
-          }
-          .timer-container {
-            padding: 24px 16px !important;
-          }
-          .timer-circle {
-            width: 200px !important;
-            height: 200px !important;
-          }
-          .timer-mode-buttons button {
-            padding: 8px 12px !important;
-            font-size: 10px !important;
-          }
-        }
-        
-        @media (max-width: 480px) {
-          .app-title {
-            font-size: 28px !important;
-          }
-          .view-toggle button {
-            padding: 6px 12px !important;
-            font-size: 11px !important;
-          }
-          .user-name {
-            display: none;
-          }
-          .timer-circle {
-            width: 180px !important;
-            height: 180px !important;
-          }
-        }
-      `}</style>
+        `}</style>
 
-      <div style={{ maxWidth: '1400px', margin: '0 auto' }}>
         {/* Header */}
-        <header className="header-content" style={{
+        <header style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
-          marginBottom: '24px',
-          flexWrap: 'wrap',
-          gap: '12px'
+          padding: '20px 32px',
+          borderBottom: '1px solid rgba(255,255,255,0.05)'
         }}>
-          <div className="header-left">
-            <h1 className="app-title" style={{
-              fontSize: '32px',
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <h1 style={{
+              fontSize: '28px',
               fontWeight: '700',
               margin: 0,
-              background: 'linear-gradient(135deg, #FF6B6B 0%, #4ECDC4 50%, #45B7D1 100%)',
+              background: 'linear-gradient(135deg, #FF6B6B 0%, #4ECDC4 100%)',
               WebkitBackgroundClip: 'text',
               WebkitTextFillColor: 'transparent'
             }}>
               FOCUS
             </h1>
+            <span style={{
+              padding: '4px 12px',
+              background: 'rgba(78,205,196,0.2)',
+              borderRadius: '12px',
+              fontSize: '11px',
+              color: '#4ECDC4',
+              fontFamily: "'JetBrains Mono', monospace"
+            }}>
+              Drag & Drop Enabled ✨
+            </span>
           </div>
           
-          <div className="header-right" style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
-            {/* View Toggle */}
-            <div className="view-toggle" style={{
-              display: 'flex',
-              background: 'rgba(0,0,0,0.3)',
-              borderRadius: '10px',
-              padding: '4px'
-            }}>
-              {['day', 'week'].map((mode) => (
-                <button
-                  key={mode}
-                  onClick={() => setViewMode(mode)}
-                  style={{
-                    padding: '8px 14px',
-                    borderRadius: '8px',
-                    border: 'none',
-                    background: viewMode === mode ? 'rgba(255,255,255,0.15)' : 'transparent',
-                    color: viewMode === mode ? '#fff' : 'rgba(255,255,255,0.5)',
-                    fontSize: '12px',
-                    fontWeight: '600',
-                    cursor: 'pointer',
-                    textTransform: 'capitalize'
-                  }}
-                >
-                  {mode}
-                </button>
-              ))}
-            </div>
-
-            {/* User Menu */}
-            <div className="user-menu" style={{
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            <div style={{
               display: 'flex',
               alignItems: 'center',
-              gap: '10px',
+              gap: '8px',
+              padding: '8px 16px',
               background: 'rgba(255,255,255,0.05)',
-              padding: '6px 12px',
-              borderRadius: '12px'
+              borderRadius: '20px'
             }}>
-              <img 
-                src={user.user_metadata?.avatar_url || `https://ui-avatars.com/api/?name=${user.email}&background=FF6B6B&color=fff`}
-                alt="Avatar"
-                style={{ width: '28px', height: '28px', borderRadius: '50%' }}
-              />
-              <span className="user-name" style={{ fontSize: '13px', color: 'rgba(255,255,255,0.8)' }}>
-                {user.user_metadata?.full_name || user.email?.split('@')[0]}
+              <div style={{
+                width: '32px',
+                height: '32px',
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #FF6B6B 0%, #4ECDC4 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontWeight: '600',
+                fontSize: '14px'
+              }}>
+                {user.email?.[0].toUpperCase()}
+              </div>
+              <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)' }}>
+                {user.email?.split('@')[0]}
               </span>
-              <button
-                onClick={handleSignOut}
-                style={{
-                  padding: '5px 10px',
-                  borderRadius: '8px',
-                  border: '1px solid rgba(255,255,255,0.2)',
-                  background: 'transparent',
-                  color: 'rgba(255,255,255,0.6)',
-                  fontSize: '11px',
-                  cursor: 'pointer'
-                }}
-              >
-                Sign Out
-              </button>
             </div>
+            <button
+              onClick={handleSignOut}
+              style={{
+                padding: '10px 20px',
+                borderRadius: '12px',
+                border: '1px solid rgba(255,255,255,0.2)',
+                background: 'transparent',
+                color: 'rgba(255,255,255,0.7)',
+                fontSize: '14px',
+                fontWeight: '500',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease'
+              }}
+            >
+              Sign Out
+            </button>
           </div>
         </header>
 
-        {/* Week Navigation */}
-        {viewMode === 'week' && (
-          <div className="week-nav" style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            marginBottom: '20px',
-            flexWrap: 'wrap',
-            gap: '12px'
-          }}>
-            <button
-              onClick={() => navigateWeek(-1)}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '10px',
-                border: '1px solid rgba(255,255,255,0.1)',
-                background: 'transparent',
-                color: 'rgba(255,255,255,0.7)',
-                cursor: 'pointer',
-                fontSize: '13px'
-              }}
-            >
-              ← Prev
-            </button>
-            <div className="week-nav-date" style={{
-              fontFamily: "'JetBrains Mono', monospace",
-              fontSize: '14px',
-              color: 'rgba(255,255,255,0.8)',
-              flex: 1,
-              textAlign: 'center'
-            }}>
-              {formatDateShort(weekDates[0])} - {formatDateShort(weekDates[6])}
-            </div>
-            <button
-              onClick={() => navigateWeek(1)}
-              style={{
-                padding: '8px 16px',
-                borderRadius: '10px',
-                border: '1px solid rgba(255,255,255,0.1)',
-                background: 'transparent',
-                color: 'rgba(255,255,255,0.7)',
-                cursor: 'pointer',
-                fontSize: '13px'
-              }}
-            >
-              Next →
-            </button>
-          </div>
-        )}
-
-        {/* Main Content - MOBILE RESPONSIVE GRID */}
-        <div className="main-layout" style={{
-          display: 'grid',
-          gridTemplateColumns: viewMode === 'week' ? '1fr 320px' : '1fr 340px',
-          gap: '20px'
-        }}>
-          {/* Schedule */}
-          <div>
-            {viewMode === 'week' ? (
-              // Week View
+        {/* Main Content */}
+        <div style={{ padding: '24px 32px', maxWidth: '1600px', margin: '0 auto' }}>
+          <div 
+            className="main-grid"
+            style={{
+              display: 'grid',
+              gridTemplateColumns: '1fr 360px',
+              gap: '24px'
+            }}
+          >
+            {/* Left Column - Calendar */}
+            <div>
+              {/* View Controls */}
               <div style={{
-                background: 'rgba(255,255,255,0.02)',
-                borderRadius: '20px',
-                padding: '16px',
-                border: '1px solid rgba(255,255,255,0.05)',
-                overflowX: 'auto'
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                marginBottom: '20px',
+                flexWrap: 'wrap',
+                gap: '12px'
               }}>
-                <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: '50px repeat(7, 1fr)',
-                  gap: '6px',
-                  minWidth: '700px'
-                }}>
-                  {/* Header row */}
-                  <div></div>
-                  {weekDates.map((date) => (
-                    <div key={date} style={{
-                      textAlign: 'center',
-                      padding: '10px 6px',
-                      background: date === today ? 'rgba(255,107,107,0.2)' : 'transparent',
-                      borderRadius: '10px'
-                    }}>
-                      <div style={{
-                        fontSize: '11px',
-                        color: date === today ? '#FF6B6B' : 'rgba(255,255,255,0.5)',
-                        fontWeight: '600'
-                      }}>
-                        {getDayName(date)}
-                      </div>
-                      <div style={{
-                        fontSize: '16px',
-                        fontWeight: '700',
-                        color: date === today ? '#FF6B6B' : '#fff',
-                        fontFamily: "'JetBrains Mono', monospace"
-                      }}>
-                        {new Date(date + 'T00:00:00').getDate()}
-                      </div>
-                    </div>
-                  ))}
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  <button
+                    onClick={() => setViewMode('day')}
+                    style={{
+                      padding: '10px 20px',
+                      borderRadius: '10px',
+                      border: 'none',
+                      background: viewMode === 'day' ? 'rgba(255,107,107,0.2)' : 'rgba(255,255,255,0.05)',
+                      color: viewMode === 'day' ? '#FF6B6B' : 'rgba(255,255,255,0.6)',
+                      fontWeight: '600',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      fontFamily: "'Space Grotesk', sans-serif"
+                    }}
+                  >
+                    Day
+                  </button>
+                  <button
+                    onClick={() => setViewMode('week')}
+                    style={{
+                      padding: '10px 20px',
+                      borderRadius: '10px',
+                      border: 'none',
+                      background: viewMode === 'week' ? 'rgba(255,107,107,0.2)' : 'rgba(255,255,255,0.05)',
+                      color: viewMode === 'week' ? '#FF6B6B' : 'rgba(255,255,255,0.6)',
+                      fontWeight: '600',
+                      fontSize: '13px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      fontFamily: "'Space Grotesk', sans-serif"
+                    }}
+                  >
+                    Week
+                  </button>
+                </div>
 
-                  {/* Time rows */}
-                  {hours.map(hour => (
-                    <React.Fragment key={hour}>
-                      <div style={{
-                        fontSize: '10px',
-                        color: 'rgba(255,255,255,0.4)',
-                        fontFamily: "'JetBrains Mono', monospace",
-                        paddingTop: '8px',
-                        textAlign: 'right',
-                        paddingRight: '6px'
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <button
+                    onClick={() => navigateWeek(-1)}
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '10px',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      background: 'transparent',
+                      color: '#fff',
+                      cursor: 'pointer',
+                      fontSize: '16px'
+                    }}
+                  >
+                    ←
+                  </button>
+                  <button
+                    onClick={() => setSelectedDate(today)}
+                    style={{
+                      padding: '8px 16px',
+                      borderRadius: '10px',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      background: selectedDate === today ? 'rgba(255,107,107,0.2)' : 'transparent',
+                      color: selectedDate === today ? '#FF6B6B' : 'rgba(255,255,255,0.6)',
+                      cursor: 'pointer',
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      fontFamily: "'Space Grotesk', sans-serif"
+                    }}
+                  >
+                    Today
+                  </button>
+                  <button
+                    onClick={() => navigateWeek(1)}
+                    style={{
+                      width: '36px',
+                      height: '36px',
+                      borderRadius: '10px',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      background: 'transparent',
+                      color: '#fff',
+                      cursor: 'pointer',
+                      fontSize: '16px'
+                    }}
+                  >
+                    →
+                  </button>
+                </div>
+              </div>
+
+              {viewMode === 'week' ? (
+                // Week View
+                <div style={{
+                  background: 'rgba(255,255,255,0.02)',
+                  borderRadius: '20px',
+                  padding: '20px',
+                  border: '1px solid rgba(255,255,255,0.05)',
+                  overflowX: 'auto'
+                }}>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '60px repeat(7, 1fr)',
+                    gap: '8px',
+                    minWidth: '800px'
+                  }}>
+                    {/* Header row */}
+                    <div></div>
+                    {weekDates.map(date => (
+                      <div key={date} style={{
+                        textAlign: 'center',
+                        padding: '10px 6px',
+                        background: date === today ? 'rgba(255,107,107,0.2)' : 'transparent',
+                        borderRadius: '10px'
                       }}>
-                        {formatHour(hour)}
+                        <div style={{
+                          fontSize: '11px',
+                          color: date === today ? '#FF6B6B' : 'rgba(255,255,255,0.5)',
+                          fontWeight: '600'
+                        }}>
+                          {getDayName(date)}
+                        </div>
+                        <div style={{
+                          fontSize: '16px',
+                          fontWeight: '700',
+                          color: date === today ? '#FF6B6B' : '#fff',
+                          fontFamily: "'JetBrains Mono', monospace"
+                        }}>
+                          {new Date(date + 'T00:00:00').getDate()}
+                        </div>
                       </div>
-                      {weekDates.map(date => {
-                        const block = blocks.find(b => b.date === date && b.hour === hour);
-                        return (
-                          <div
-                            key={`${date}-${hour}`}
-                            onClick={() => {
-                              if (block) {
-                                setActiveBlockId(block.id);
-                              } else {
-                                setSelectedHour(hour);
-                                setSelectedDate(date);
-                                setShowModal(true);
-                              }
-                            }}
-                            style={{
-                              minHeight: '44px',
-                              borderRadius: '6px',
-                              border: '1px dashed rgba(255,255,255,0.1)',
-                              cursor: 'pointer',
-                              transition: 'all 0.2s ease',
-                              padding: '3px'
-                            }}
-                          >
-                            {block && (
+                    ))}
+
+                    {/* Time rows */}
+                    {hours.map(hour => (
+                      <React.Fragment key={hour}>
+                        <div style={{
+                          fontSize: '10px',
+                          color: 'rgba(255,255,255,0.4)',
+                          fontFamily: "'JetBrains Mono', monospace",
+                          paddingTop: '8px',
+                          textAlign: 'right',
+                          paddingRight: '6px'
+                        }}>
+                          {formatHour(hour)}
+                        </div>
+                        {weekDates.map(date => {
+                          const block = blocks.find(b => b.date === date && b.hour === hour);
+                          return (
+                            <DroppableCell
+                              key={`${date}-${hour}`}
+                              date={date}
+                              hour={hour}
+                              block={block}
+                              onCellClick={handleCellClick}
+                            >
+                              {block && (
+                                <div onClick={() => setActiveBlockId(block.id)}>
+                                  <TimeBlock
+                                    block={block}
+                                    onUpdate={handleUpdateBlock}
+                                    onDelete={handleDeleteBlock}
+                                    isActive={block.id === activeBlockId}
+                                    isCompact={true}
+                                    onEdit={setEditingBlock}
+                                  />
+                                </div>
+                              )}
+                            </DroppableCell>
+                          );
+                        })}
+                      </React.Fragment>
+                    ))}
+                  </div>
+                </div>
+              ) : (
+                // Day View
+                <div style={{
+                  background: 'rgba(255,255,255,0.02)',
+                  borderRadius: '20px',
+                  padding: '24px',
+                  border: '1px solid rgba(255,255,255,0.05)'
+                }}>
+                  <div style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    marginBottom: '20px'
+                  }}>
+                    <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>
+                      Today's Schedule
+                    </h2>
+                    <div style={{
+                      fontFamily: "'JetBrains Mono', monospace",
+                      fontSize: '13px',
+                      color: 'rgba(255,255,255,0.4)',
+                      background: 'rgba(255,255,255,0.05)',
+                      padding: '6px 14px',
+                      borderRadius: '16px'
+                    }}>
+                      {formatDateShort(selectedDate)}
+                    </div>
+                  </div>
+
+                  <div style={{ maxHeight: '500px', overflowY: 'auto', paddingRight: '8px' }}>
+                    {hours.map(hour => {
+                      const block = blocks.find(b => b.date === selectedDate && b.hour === hour);
+                      const isCurrentHour = hour === currentHour && selectedDate === today;
+                      
+                      return (
+                        <div key={hour} style={{ position: 'relative' }}>
+                          {isCurrentHour && (
+                            <div style={{
+                              position: 'absolute',
+                              left: '-12px',
+                              top: '50%',
+                              transform: 'translateY(-50%)',
+                              width: '8px',
+                              height: '8px',
+                              background: '#FF6B6B',
+                              borderRadius: '50%',
+                              boxShadow: '0 0 16px #FF6B6B'
+                            }} />
+                          )}
+                          
+                          {block ? (
+                            <div onClick={() => setActiveBlockId(block.id)}>
                               <TimeBlock
                                 block={block}
                                 onUpdate={handleUpdateBlock}
                                 onDelete={handleDeleteBlock}
                                 isActive={block.id === activeBlockId}
-                                isCompact={true}
+                                onEdit={setEditingBlock}
                               />
-                            )}
-                          </div>
-                        );
-                      })}
-                    </React.Fragment>
-                  ))}
-                </div>
-              </div>
-            ) : (
-              // Day View
-              <div style={{
-                background: 'rgba(255,255,255,0.02)',
-                borderRadius: '20px',
-                padding: '24px',
-                border: '1px solid rgba(255,255,255,0.05)'
-              }}>
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: '20px'
-                }}>
-                  <h2 style={{ margin: 0, fontSize: '18px', fontWeight: '600' }}>
-                    Today's Schedule
-                  </h2>
-                  <div style={{
-                    fontFamily: "'JetBrains Mono', monospace",
-                    fontSize: '13px',
-                    color: 'rgba(255,255,255,0.4)',
-                    background: 'rgba(255,255,255,0.05)',
-                    padding: '6px 14px',
-                    borderRadius: '16px'
-                  }}>
-                    {formatDateShort(selectedDate)}
+                            </div>
+                          ) : (
+                            <DroppableCell
+                              date={selectedDate}
+                              hour={hour}
+                              block={null}
+                              onCellClick={handleCellClick}
+                            >
+                              <div style={{
+                                borderRadius: '14px',
+                                padding: '14px 18px',
+                                marginBottom: '8px',
+                                display: 'flex',
+                                alignItems: 'center',
+                                gap: '14px'
+                              }}>
+                                <span style={{
+                                  fontFamily: "'JetBrains Mono', monospace",
+                                  fontSize: '11px',
+                                  color: 'rgba(255,255,255,0.3)'
+                                }}>
+                                  {formatHour(hour)}
+                                </span>
+                                <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '13px' }}>
+                                  + Add block
+                                </span>
+                              </div>
+                            </DroppableCell>
+                          )}
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
+              )}
+            </div>
 
-                <div style={{ maxHeight: '500px', overflowY: 'auto', paddingRight: '8px' }}>
-                  {hours.map(hour => {
-                    const block = blocks.find(b => b.date === selectedDate && b.hour === hour);
-                    const isCurrentHour = hour === currentHour && selectedDate === today;
-                    
-                    return (
-                      <div key={hour} style={{ position: 'relative' }}>
-                        {isCurrentHour && (
-                          <div style={{
-                            position: 'absolute',
-                            left: '-12px',
-                            top: '50%',
-                            transform: 'translateY(-50%)',
-                            width: '8px',
-                            height: '8px',
-                            background: '#FF6B6B',
-                            borderRadius: '50%',
-                            boxShadow: '0 0 16px #FF6B6B'
-                          }} />
-                        )}
-                        
-                        {block ? (
-                          <div onClick={() => setActiveBlockId(block.id)}>
-                            <TimeBlock
-                              block={block}
-                              onUpdate={handleUpdateBlock}
-                              onDelete={handleDeleteBlock}
-                              isActive={block.id === activeBlockId}
-                            />
-                          </div>
-                        ) : (
-                          <div
-                            onClick={() => {
-                              setSelectedHour(hour);
-                              setShowModal(true);
-                            }}
-                            style={{
-                              borderRadius: '14px',
-                              padding: '14px 18px',
-                              marginBottom: '8px',
-                              border: '2px dashed rgba(255,255,255,0.1)',
-                              cursor: 'pointer',
-                              display: 'flex',
-                              alignItems: 'center',
-                              gap: '14px'
-                            }}
-                          >
-                            <span style={{
-                              fontFamily: "'JetBrains Mono', monospace",
-                              fontSize: '11px',
-                              color: 'rgba(255,255,255,0.3)'
-                            }}>
-                              {formatHour(hour)}
-                            </span>
-                            <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '13px' }}>
-                              + Add block
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              </div>
-            )}
-          </div>
-
-          {/* Right Column - Timer & Analytics */}
-          <div className="right-column" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
-            <PomodoroTimer 
-              onComplete={handlePomodoroComplete}
-              currentTask={activeBlock?.title}
-              preferences={preferences}
-            />
-            
-            <AnalyticsDashboard 
-              stats={stats}
-              weeklyData={[]}
-              blocks={blocks}
-            />
+            {/* Right Column - Timer & Analytics */}
+            <div className="right-column" style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+              <PomodoroTimer 
+                onComplete={handlePomodoroComplete}
+                currentTask={activeBlock?.title}
+                preferences={preferences}
+              />
+              
+              <AnalyticsDashboard 
+                stats={stats}
+                weeklyData={[]}
+                blocks={blocks}
+              />
+            </div>
           </div>
         </div>
-      </div>
 
-      {/* Add Block Modal */}
-      {showModal && (
-        <AddBlockModal
-          hour={selectedHour}
-          date={selectedDate}
-          onAdd={handleAddBlock}
-          onClose={() => setShowModal(false)}
-        />
-      )}
+        {/* Add Block Modal */}
+        {showModal && (
+          <AddBlockModal
+            hour={selectedHour}
+            date={selectedDate}
+            onAdd={handleAddBlock}
+            onClose={() => setShowModal(false)}
+          />
+        )}
 
-      {/* Sync Indicator */}
-      <div style={{
-        position: 'fixed',
-        bottom: '16px',
-        right: '16px',
-        display: 'flex',
-        alignItems: 'center',
-        gap: '6px',
-        background: 'rgba(0,0,0,0.6)',
-        padding: '8px 14px',
-        borderRadius: '16px',
-        backdropFilter: 'blur(10px)'
-      }}>
+        {/* Edit Block Modal */}
+        {editingBlock && (
+          <EditBlockModal
+            block={editingBlock}
+            onUpdate={handleUpdateBlock}
+            onClose={() => setEditingBlock(null)}
+          />
+        )}
+
+        {/* Sync Indicator */}
         <div style={{
-          width: '6px',
-          height: '6px',
-          borderRadius: '50%',
-          background: isSyncing ? '#FFC75F' : '#4ECDC4',
-          animation: isSyncing ? 'pulse 1s infinite' : 'none'
-        }} />
-        <span style={{
-          fontFamily: "'JetBrains Mono', monospace",
-          fontSize: '10px',
-          color: 'rgba(255,255,255,0.6)'
+          position: 'fixed',
+          bottom: '16px',
+          right: '16px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '6px',
+          background: 'rgba(0,0,0,0.6)',
+          padding: '8px 14px',
+          borderRadius: '16px',
+          backdropFilter: 'blur(10px)'
         }}>
-          {isSyncing ? 'Syncing...' : 'Synced'}
-        </span>
+          <div style={{
+            width: '6px',
+            height: '6px',
+            borderRadius: '50%',
+            background: isSyncing ? '#FFC75F' : '#4ECDC4',
+            animation: isSyncing ? 'pulse 1s infinite' : 'none'
+          }} />
+          <span style={{
+            fontFamily: "'JetBrains Mono', monospace",
+            fontSize: '10px',
+            color: 'rgba(255,255,255,0.6)'
+          }}>
+            {isSyncing ? 'Syncing...' : 'Synced'}
+          </span>
+        </div>
       </div>
-    </div>
+    </DragProvider>
   );
 }
