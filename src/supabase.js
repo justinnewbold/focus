@@ -1,17 +1,23 @@
 import { createClient } from '@supabase/supabase-js';
 
-// Supabase configuration
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL 
-  || 'https://wektbfkzbxvtxsremnnk.supabase.co';
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY 
-  || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Indla3RiZmt6Ynh2dHhzcmVtbm5rIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjU4NDcyNjMsImV4cCI6MjA4MTQyMzI2M30.-oLnJRoDBpqgzDZ7bM3fm6TXBNGH6SaRpnKDiHQZ3_4';
+// Supabase configuration - credentials must come from environment variables
+// Create a .env file with VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY
+const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
+const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+
+// Validate environment variables in development
+if (import.meta.env.DEV && (!supabaseUrl || !supabaseAnonKey)) {
+  console.error(
+    'Missing Supabase credentials. Please set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY in your .env file.'
+  );
+}
 
 // Create Supabase client with persistent session storage
-export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
+export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
   auth: {
     persistSession: true,
     storageKey: 'focus-auth-token',
-    storage: window.localStorage,
+    storage: typeof window !== 'undefined' ? window.localStorage : undefined,
     autoRefreshToken: true,
     detectSessionInUrl: true
   },
@@ -27,7 +33,7 @@ export const auth = {
   async signInWithGoogle() {
     return await supabase.auth.signInWithOAuth({
       provider: 'google',
-      options: { 
+      options: {
         redirectTo: window.location.origin,
         queryParams: {
           access_type: 'offline',
@@ -36,21 +42,21 @@ export const auth = {
       }
     });
   },
-  
-  async signOut() { 
-    return await supabase.auth.signOut(); 
+
+  async signOut() {
+    return await supabase.auth.signOut();
   },
-  
-  async getUser() { 
-    return await supabase.auth.getUser(); 
+
+  async getUser() {
+    return await supabase.auth.getUser();
   },
-  
-  async getSession() { 
-    return await supabase.auth.getSession(); 
+
+  async getSession() {
+    return await supabase.auth.getSession();
   },
-  
-  onAuthStateChange(callback) { 
-    return supabase.auth.onAuthStateChange(callback); 
+
+  onAuthStateChange(callback) {
+    return supabase.auth.onAuthStateChange(callback);
   }
 };
 
@@ -60,152 +66,265 @@ export const auth = {
 
 export const realtimeSync = {
   subscriptions: new Map(),
-  
+
   subscribeToBlocks(userId, onInsert, onUpdate, onDelete) {
     if (!userId) return null;
     const channelName = `blocks-${userId}`;
     this.unsubscribe(channelName);
-    
+
     const channel = supabase
       .channel(channelName)
-      .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'time_blocks', filter: `user_id=eq.${userId}` },
-        (payload) => { console.log('🔄 INSERT:', payload.new); onInsert?.(payload.new); })
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'time_blocks', filter: `user_id=eq.${userId}` },
-        (payload) => { console.log('🔄 UPDATE:', payload.new); onUpdate?.(payload.new); })
-      .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'time_blocks', filter: `user_id=eq.${userId}` },
-        (payload) => { console.log('🔄 DELETE:', payload.old); onDelete?.(payload.old); })
-      .subscribe((status) => { console.log(`📡 Realtime (${channelName}):`, status); });
-    
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'time_blocks',
+          filter: `user_id=eq.${userId}`
+        },
+        (payload) => {
+          onInsert?.(payload.new);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'UPDATE',
+          schema: 'public',
+          table: 'time_blocks',
+          filter: `user_id=eq.${userId}`
+        },
+        (payload) => {
+          onUpdate?.(payload.new);
+        }
+      )
+      .on(
+        'postgres_changes',
+        {
+          event: 'DELETE',
+          schema: 'public',
+          table: 'time_blocks',
+          filter: `user_id=eq.${userId}`
+        },
+        (payload) => {
+          onDelete?.(payload.old);
+        }
+      )
+      .subscribe();
+
     this.subscriptions.set(channelName, channel);
     return channel;
   },
-  
+
   subscribeToStats(userId, onChange) {
     if (!userId) return null;
     const channelName = `stats-${userId}`;
     this.unsubscribe(channelName);
-    
+
     const channel = supabase
       .channel(channelName)
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'pomodoro_stats', filter: `user_id=eq.${userId}` },
-        (payload) => { console.log('🔄 STATS:', payload); onChange?.(payload.eventType, payload.new || payload.old); })
+      .on(
+        'postgres_changes',
+        {
+          event: '*',
+          schema: 'public',
+          table: 'pomodoro_stats',
+          filter: `user_id=eq.${userId}`
+        },
+        (payload) => {
+          onChange?.(payload.eventType, payload.new || payload.old);
+        }
+      )
       .subscribe();
-    
+
     this.subscriptions.set(channelName, channel);
     return channel;
   },
-  
+
   unsubscribe(channelName) {
     const channel = this.subscriptions.get(channelName);
-    if (channel) { supabase.removeChannel(channel); this.subscriptions.delete(channelName); }
+    if (channel) {
+      supabase.removeChannel(channel);
+      this.subscriptions.delete(channelName);
+    }
   },
-  
+
   unsubscribeAll() {
     this.subscriptions.forEach((channel) => supabase.removeChannel(channel));
     this.subscriptions.clear();
   }
 };
 
-// Database helpers
+// Database helpers with improved error handling
 export const db = {
-  async getTimeBlocks(userId, startDate, endDate) {
-    if (!userId) return { data: [], error: null };
-    let query = supabase.from('time_blocks').select('*').eq('user_id', userId).order('hour', { ascending: true });
-    if (startDate && endDate) query = query.gte('date', startDate).lte('date', endDate);
-    else if (startDate) query = query.eq('date', startDate);
-    return await query;
+  async getTimeBlocks(userId) {
+    if (!userId) return [];
+    try {
+      const { data, error } = await supabase
+        .from('time_blocks')
+        .select('*')
+        .eq('user_id', userId)
+        .order('hour', { ascending: true });
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching time blocks:', error);
+      throw error;
+    }
   },
 
   async createTimeBlock(userId, block) {
-    if (!userId) return { data: null, error: new Error('Not authenticated') };
-    return await supabase.from('time_blocks').insert({ ...block, user_id: userId }).select().single();
+    if (!userId) throw new Error('Not authenticated');
+    try {
+      const { data, error } = await supabase
+        .from('time_blocks')
+        .insert({ ...block, user_id: userId })
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error creating time block:', error);
+      return { data: null, error };
+    }
   },
 
   async updateTimeBlock(userId, id, updates) {
-    if (!userId) return { data: null, error: new Error('Not authenticated') };
-    return await supabase.from('time_blocks').update({ ...updates, updated_at: new Date().toISOString() })
-      .eq('id', id).eq('user_id', userId).select().single();
+    if (!userId) throw new Error('Not authenticated');
+    try {
+      const { data, error } = await supabase
+        .from('time_blocks')
+        .update({ ...updates, updated_at: new Date().toISOString() })
+        .eq('id', id)
+        .eq('user_id', userId)
+        .select()
+        .single();
+
+      if (error) throw error;
+      return { data, error: null };
+    } catch (error) {
+      console.error('Error updating time block:', error);
+      return { data: null, error };
+    }
   },
 
   async deleteTimeBlock(userId, id) {
-    if (!userId) return { error: null };
-    return await supabase.from('time_blocks').delete().eq('id', id).eq('user_id', userId);
+    if (!userId) throw new Error('Not authenticated');
+    try {
+      const { error } = await supabase
+        .from('time_blocks')
+        .delete()
+        .eq('id', id)
+        .eq('user_id', userId);
+
+      if (error) throw error;
+      return { error: null };
+    } catch (error) {
+      console.error('Error deleting time block:', error);
+      return { error };
+    }
   },
 
-  async getTodayStats(userId) {
-    if (!userId) return { data: { pomodoros_completed: 0, focus_minutes: 0 }, error: null };
-    const today = new Date().toISOString().split('T')[0];
-    const { data, error } = await supabase.from('pomodoro_stats').select('*').eq('user_id', userId).eq('date', today).single();
-    if (error && error.code === 'PGRST116') return { data: { pomodoros_completed: 0, focus_minutes: 0 }, error: null };
-    return { data, error };
+  async getPomodoroStats(userId) {
+    if (!userId) return [];
+    try {
+      const { data, error } = await supabase
+        .from('pomodoro_stats')
+        .select('*')
+        .eq('user_id', userId)
+        .order('date', { ascending: false })
+        .limit(30);
+
+      if (error) throw error;
+      return data || [];
+    } catch (error) {
+      console.error('Error fetching pomodoro stats:', error);
+      return [];
+    }
   },
 
-  async getStatsRange(userId, startDate, endDate) {
-    if (!userId) return { data: [], error: null };
-    return await supabase.from('pomodoro_stats').select('*').eq('user_id', userId).gte('date', startDate).lte('date', endDate).order('date', { ascending: true });
-  },
+  async updatePomodoroStats(userId, pomodorosToAdd = 1, category = 'work') {
+    if (!userId) return { error: new Error('Not authenticated') };
+    const focusMinutes = 25;
+    try {
+      const today = new Date().toISOString().split('T')[0];
+      const { data: existing } = await supabase
+        .from('pomodoro_stats')
+        .select('*')
+        .eq('user_id', userId)
+        .eq('date', today)
+        .single();
 
-  async getAllTimeStats(userId) {
-    if (!userId) return { data: null, error: null };
-    const { data, error } = await supabase.from('pomodoro_stats').select('pomodoros_completed, focus_minutes, date').eq('user_id', userId).order('date', { ascending: true });
-    if (error) return { data: null, error };
-    
-    const totalPomodoros = data.reduce((sum, s) => sum + (s.pomodoros_completed || 0), 0);
-    const totalMinutes = data.reduce((sum, s) => sum + (s.focus_minutes || 0), 0);
-    
-    let longestStreak = 0, currentStreak = 0, prevDate = null;
-    data.forEach(stat => {
-      const currDate = new Date(stat.date);
-      if (prevDate) {
-        const diffDays = Math.floor((currDate - prevDate) / (1000 * 60 * 60 * 24));
-        if (diffDays === 1) currentStreak++;
-        else { longestStreak = Math.max(longestStreak, currentStreak); currentStreak = 1; }
-      } else currentStreak = 1;
-      prevDate = currDate;
-    });
-    longestStreak = Math.max(longestStreak, currentStreak);
-    
-    return { data: { total_pomodoros: totalPomodoros, total_minutes: totalMinutes, longest_streak: longestStreak, first_session: data[0]?.date || null, total_days: data.length }, error: null };
-  },
+      if (existing) {
+        const breakdown = existing.categories_breakdown || {};
+        breakdown[category] = (breakdown[category] || 0) + pomodorosToAdd;
 
-  async updatePomodoroStats(userId, category = 'work', focusMinutes = 25) {
-    if (!userId) return { error: null };
-    const today = new Date().toISOString().split('T')[0];
-    const { data: existing } = await supabase.from('pomodoro_stats').select('*').eq('user_id', userId).eq('date', today).single();
-    
-    if (existing) {
-      const breakdown = existing.categories_breakdown || {};
-      breakdown[category] = (breakdown[category] || 0) + 1;
-      return await supabase.from('pomodoro_stats').update({
-        pomodoros_completed: existing.pomodoros_completed + 1, focus_minutes: existing.focus_minutes + focusMinutes,
-        categories_breakdown: breakdown, updated_at: new Date().toISOString()
-      }).eq('id', existing.id);
-    } else {
-      return await supabase.from('pomodoro_stats').insert({
-        user_id: userId, date: today, pomodoros_completed: 1, focus_minutes: focusMinutes, categories_breakdown: { [category]: 1 }
-      });
+        const { error } = await supabase
+          .from('pomodoro_stats')
+          .update({
+            pomodoros_completed: existing.pomodoros_completed + pomodorosToAdd,
+            focus_minutes: (existing.focus_minutes || 0) + focusMinutes,
+            categories_breakdown: breakdown,
+            updated_at: new Date().toISOString()
+          })
+          .eq('id', existing.id);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase.from('pomodoro_stats').insert({
+          user_id: userId,
+          date: today,
+          pomodoros_completed: pomodorosToAdd,
+          focus_minutes: focusMinutes,
+          categories_breakdown: { [category]: pomodorosToAdd }
+        });
+
+        if (error) throw error;
+      }
+
+      return { error: null };
+    } catch (error) {
+      console.error('Error updating pomodoro stats:', error);
+      return { error };
     }
   },
 
   async getPreferences(userId) {
-    if (!userId) return { data: null, error: null };
-    const { data, error } = await supabase.from('user_preferences').select('*').eq('user_id', userId).single();
-    if (error && error.code === 'PGRST116') return { data: null, error: null };
-    return { data, error };
+    if (!userId) return null;
+    try {
+      const { data, error } = await supabase
+        .from('user_preferences')
+        .select('*')
+        .eq('user_id', userId)
+        .single();
+
+      if (error && error.code !== 'PGRST116') throw error;
+      return data;
+    } catch (error) {
+      console.error('Error fetching preferences:', error);
+      return null;
+    }
   },
 
   async upsertPreferences(userId, preferences) {
-    if (!userId) return { error: null };
-    return await supabase.from('user_preferences').upsert({ user_id: userId, ...preferences, updated_at: new Date().toISOString() }, { onConflict: 'user_id' });
-  },
+    if (!userId) return { error: new Error('Not authenticated') };
+    try {
+      const { error } = await supabase.from('user_preferences').upsert(
+        {
+          user_id: userId,
+          ...preferences,
+          updated_at: new Date().toISOString()
+        },
+        { onConflict: 'user_id' }
+      );
 
-  async exportUserData(userId) {
-    if (!userId) return null;
-    const [blocksResult, statsResult, prefsResult] = await Promise.all([
-      supabase.from('time_blocks').select('*').eq('user_id', userId),
-      supabase.from('pomodoro_stats').select('*').eq('user_id', userId),
-      supabase.from('user_preferences').select('*').eq('user_id', userId).single()
-    ]);
-    return { exportedAt: new Date().toISOString(), timeBlocks: blocksResult.data || [], pomodoroStats: statsResult.data || [], preferences: prefsResult.data || null };
+      if (error) throw error;
+      return { error: null };
+    } catch (error) {
+      console.error('Error upserting preferences:', error);
+      return { error };
+    }
   }
 };
