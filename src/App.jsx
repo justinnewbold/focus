@@ -701,8 +701,13 @@ export default function App() {
   const handleAddBlock = async (blockData) => {
     if (!user) return;
     setIsSyncing(true);
-    const newBlock = await db.createTimeBlock(user.id, blockData);
-    if (newBlock) setBlocks(prev => [...prev, newBlock]);
+    const { data: newBlock, error } = await db.createTimeBlock(user.id, blockData);
+    if (error) {
+      console.error('Error creating block:', error);
+      alert('Failed to save block. Please try again.');
+    } else if (newBlock) {
+      setBlocks(prev => [...prev, newBlock]);
+    }
     setIsSyncing(false);
   };
 
