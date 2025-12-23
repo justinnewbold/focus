@@ -1792,7 +1792,7 @@ const AnalyticsDashboard = ({ stats, weeklyData, blocks }) => {
       </h2>
 
       {/* Stats Grid */}
-      <div style={{
+      <div className="analytics-grid" style={{
         display: 'grid',
         gridTemplateColumns: 'repeat(3, 1fr)',
         gap: '12px',
@@ -1801,15 +1801,16 @@ const AnalyticsDashboard = ({ stats, weeklyData, blocks }) => {
         {[
           { value: todayPomodoros, label: 'Pomodoros', color: '#FF6B6B' },
           { value: completedBlocks, label: 'Completed', color: '#4ECDC4' },
-          { value: totalBlocks, label: 'Total Blocks', color: '#845EC2' }
+          { value: totalBlocks, label: 'Total', color: '#845EC2' }
         ].map((stat, i) => (
-          <div key={i} style={{
+          <div key={i} className="analytics-card" style={{
             background: `${stat.color}10`,
             borderRadius: '12px',
             padding: '16px',
-            textAlign: 'center'
+            textAlign: 'center',
+            minWidth: 0
           }}>
-            <div style={{
+            <div className="analytics-value" style={{
               fontSize: '28px',
               fontWeight: '700',
               color: stat.color,
@@ -1817,7 +1818,7 @@ const AnalyticsDashboard = ({ stats, weeklyData, blocks }) => {
             }}>
               {stat.value}
             </div>
-            <div style={{
+            <div className="analytics-label" style={{
               fontSize: '9px',
               color: 'rgba(255,255,255,0.4)',
               textTransform: 'uppercase',
@@ -2111,12 +2112,14 @@ export default function App() {
         color: '#fff',
         fontFamily: "'Space Grotesk', sans-serif"
       }}>
-        {/* CSS for animations */}
+        {/* CSS for animations and responsive */}
         <style>{`
           @keyframes pulse {
             0%, 100% { opacity: 1; }
             50% { opacity: 0.5; }
           }
+          
+          /* Tablet */
           @media (max-width: 900px) {
             .main-grid {
               grid-template-columns: 1fr !important;
@@ -2125,6 +2128,74 @@ export default function App() {
               order: -1;
             }
           }
+          
+          /* Mobile phones */
+          @media (max-width: 600px) {
+            .app-header {
+              flex-direction: column !important;
+              gap: 12px !important;
+              padding: 12px 16px !important;
+            }
+            .header-left, .header-right {
+              width: 100% !important;
+              justify-content: center !important;
+            }
+            .main-content {
+              padding: 12px !important;
+            }
+            .drag-badge {
+              display: none !important;
+            }
+            .analytics-grid {
+              gap: 8px !important;
+            }
+            .analytics-card {
+              padding: 10px 6px !important;
+            }
+            .analytics-value {
+              font-size: 20px !important;
+            }
+            .analytics-label {
+              font-size: 7px !important;
+            }
+            .week-grid-container {
+              padding: 12px !important;
+            }
+            .week-grid {
+              grid-template-columns: 40px repeat(7, minmax(32px, 1fr)) !important;
+              gap: 3px !important;
+              min-width: unset !important;
+            }
+            .day-header {
+              padding: 4px 2px !important;
+            }
+            .day-name {
+              font-size: 8px !important;
+            }
+            .day-number {
+              font-size: 11px !important;
+            }
+            .time-label {
+              font-size: 7px !important;
+              padding-right: 2px !important;
+            }
+            .timer-container {
+              padding: 16px !important;
+            }
+            .timer-mode-btn {
+              padding: 8px 10px !important;
+              font-size: 9px !important;
+            }
+            .view-controls {
+              flex-direction: column !important;
+              gap: 8px !important;
+            }
+            .view-toggle button {
+              padding: 6px 12px !important;
+              font-size: 11px !important;
+            }
+          }
+          
           .time-block-card:hover {
             transform: translateY(-2px);
             box-shadow: 0 8px 25px rgba(0,0,0,0.3);
@@ -2136,14 +2207,16 @@ export default function App() {
         `}</style>
 
         {/* Header */}
-        <header style={{
+        <header className="app-header" style={{
           display: 'flex',
           justifyContent: 'space-between',
           alignItems: 'center',
           padding: '20px 32px',
-          borderBottom: '1px solid rgba(255,255,255,0.05)'
+          borderBottom: '1px solid rgba(255,255,255,0.05)',
+          flexWrap: 'wrap',
+          gap: '12px'
         }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div className="header-left" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <h1 style={{
               fontSize: '28px',
               fontWeight: '700',
@@ -2154,7 +2227,7 @@ export default function App() {
             }}>
               FOCUS
             </h1>
-            <span style={{
+            <span className="drag-badge" style={{
               padding: '4px 12px',
               background: 'rgba(78,205,196,0.2)',
               borderRadius: '12px',
@@ -2166,7 +2239,7 @@ export default function App() {
             </span>
           </div>
           
-          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <div className="header-right" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
             <div style={{
               display: 'flex',
               alignItems: 'center',
@@ -2212,7 +2285,7 @@ export default function App() {
         </header>
 
         {/* Main Content */}
-        <div style={{ padding: '24px 32px', maxWidth: '1600px', margin: '0 auto' }}>
+        <div className="main-content" style={{ padding: '24px 32px', maxWidth: '1600px', margin: '0 auto' }}>
           <div 
             className="main-grid"
             style={{
@@ -2321,37 +2394,38 @@ export default function App() {
 
               {viewMode === 'week' ? (
                 // Week View
-                <div style={{
+                <div className="week-grid-container" style={{
                   background: 'rgba(255,255,255,0.02)',
                   borderRadius: '20px',
-                  padding: '20px',
+                  padding: '16px',
                   border: '1px solid rgba(255,255,255,0.05)',
-                  overflowX: 'auto'
+                  overflowX: 'auto',
+                  WebkitOverflowScrolling: 'touch'
                 }}>
-                  <div style={{
+                  <div className="week-grid" style={{
                     display: 'grid',
-                    gridTemplateColumns: '60px repeat(7, 1fr)',
-                    gap: '8px',
-                    minWidth: '800px'
+                    gridTemplateColumns: '50px repeat(7, minmax(50px, 1fr))',
+                    gap: '6px',
+                    minWidth: '450px'
                   }}>
                     {/* Header row */}
                     <div></div>
                     {weekDates.map(date => (
-                      <div key={date} style={{
+                      <div key={date} className="day-header" style={{
                         textAlign: 'center',
-                        padding: '10px 6px',
+                        padding: '8px 4px',
                         background: date === today ? 'rgba(255,107,107,0.2)' : 'transparent',
                         borderRadius: '10px'
                       }}>
-                        <div style={{
-                          fontSize: '11px',
+                        <div className="day-name" style={{
+                          fontSize: '10px',
                           color: date === today ? '#FF6B6B' : 'rgba(255,255,255,0.5)',
                           fontWeight: '600'
                         }}>
                           {getDayName(date)}
                         </div>
-                        <div style={{
-                          fontSize: '16px',
+                        <div className="day-number" style={{
+                          fontSize: '14px',
                           fontWeight: '700',
                           color: date === today ? '#FF6B6B' : '#fff',
                           fontFamily: "'JetBrains Mono', monospace"
@@ -2364,13 +2438,14 @@ export default function App() {
                     {/* Time rows */}
                     {hours.map(hour => (
                       <React.Fragment key={hour}>
-                        <div style={{
-                          fontSize: '10px',
+                        <div className="time-label" style={{
+                          fontSize: '9px',
                           color: 'rgba(255,255,255,0.4)',
                           fontFamily: "'JetBrains Mono', monospace",
                           paddingTop: '8px',
                           textAlign: 'right',
-                          paddingRight: '6px'
+                          paddingRight: '4px',
+                          whiteSpace: 'nowrap'
                         }}>
                           {formatHour(hour)}
                         </div>
