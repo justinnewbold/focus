@@ -67,3 +67,54 @@ export {
   RetryQueue,
   createRetryState
 } from './retry';
+
+// Templates and recurring blocks
+export {
+  getTemplates,
+  saveTemplate,
+  deleteTemplate,
+  blockFromTemplate,
+  RecurrenceType,
+  getRecurringConfigs,
+  saveRecurringConfig,
+  deleteRecurringConfig,
+  generateRecurringBlocks
+} from './templates';
+
+// Tags/Labels
+export {
+  TAG_COLORS,
+  getTags,
+  saveTags,
+  createTag,
+  updateTag,
+  deleteTag,
+  getTagById,
+  filterBlocksByTags,
+  getTagStats
+} from './tags';
+
+// Theme system
+export {
+  THEMES,
+  getCurrentThemeId,
+  getCurrentTheme,
+  setTheme,
+  applyTheme,
+  initializeTheme
+} from './theme';
+
+// Goals and streaks
+export {
+  GoalType,
+  getGoals,
+  saveGoals,
+  createGoal,
+  updateGoal,
+  deleteGoal,
+  calculateGoalProgress,
+  getGoalDateRange,
+  getStreaks,
+  updateStreak,
+  getStreakCalendar
+} from './goals';

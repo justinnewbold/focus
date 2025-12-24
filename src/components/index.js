@@ -9,6 +9,10 @@ export { default as LoadingScreen } from './LoadingScreen';
 export { default as SyncStatus } from './SyncStatus';
 export { ToastContainer, ToastItem } from './Toast';
 export { default as ConfirmDialog } from './ConfirmDialog';
+export { default as FocusMode } from './FocusMode';
+export { default as QuickAdd } from './QuickAdd';
+export { default as ThemeSwitcher } from './ThemeSwitcher';
+export { default as GoalsPanel } from './GoalsPanel';
 
 // Modals
 export { AddBlockModal, EditBlockModal, TimerSettingsModal } from './modals';

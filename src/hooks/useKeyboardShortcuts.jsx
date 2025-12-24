@@ -48,6 +48,18 @@ export const useKeyboardShortcuts = (handlers, enabled = true) => {
       event.preventDefault();
       handlers.undo();
     }
+
+    // Ctrl/Cmd + K - quick add
+    if ((event.ctrlKey || event.metaKey) && key === 'k' && handlers.quickAdd) {
+      event.preventDefault();
+      handlers.quickAdd();
+    }
+
+    // Ctrl/Cmd + Shift + F - focus mode
+    if ((event.ctrlKey || event.metaKey) && event.shiftKey && key === 'f' && handlers.focusMode) {
+      event.preventDefault();
+      handlers.focusMode();
+    }
   }, [handlers]);
 
   useEffect(() => {

@@ -13,6 +13,10 @@ import {
   SyncStatus,
   ToastContainer,
   ConfirmDialog,
+  FocusMode,
+  QuickAdd,
+  ThemeSwitcher,
+  GoalsPanel,
   AddBlockModal,
   EditBlockModal,
   TimerSettingsModal
@@ -37,7 +41,9 @@ import {
   subscribeToNetworkStatus,
   exportBlocksCSV,
   exportBlocksJSON,
-  withRetry
+  withRetry,
+  initializeTheme,
+  updateStreak
 } from './utils';
 import { timerStorage, deletedBlocksStorage } from './utils/storage';
 import { requestNotificationPermission } from './utils/notifications';
@@ -111,12 +117,19 @@ function App() {
   const [networkOnline, setNetworkOnline] = useState(isOnline());
   const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, block: null });
   const [showExportMenu, setShowExportMenu] = useState(false);
+  const [showFocusMode, setShowFocusMode] = useState(false);
+  const [showQuickAdd, setShowQuickAdd] = useState(false);
 
   // Refs
   const timerRef = useRef(null);
 
   // Toast notifications
   const toast = useToast();
+
+  // Initialize theme on mount
+  useEffect(() => {
+    initializeTheme();
+  }, []);
 
   // Derived state
   const today = getToday();
@@ -469,8 +482,10 @@ function App() {
       if (lastDeleted) {
         handleUndoDelete(lastDeleted);
       }
-    }
-  }, !showModal && !editingBlock && !showTimerSettings);
+    },
+    quickAdd: () => setShowQuickAdd(true),
+    focusMode: () => setShowFocusMode(true)
+  }, !showModal && !editingBlock && !showTimerSettings && !showQuickAdd && !showFocusMode);
 
   // Loading state
   if (isLoading) {
@@ -642,6 +657,29 @@ function App() {
                   </div>
                 )}
               </div>
+              {/* Focus Mode Button */}
+              <button
+                onClick={() => setShowFocusMode(true)}
+                aria-label="Enter Focus Mode"
+                title="Focus Mode (⌘⇧F)"
+                style={{
+                  padding: '10px 16px',
+                  borderRadius: '12px',
+                  border: 'none',
+                  background: 'linear-gradient(135deg, #FF6B6B 0%, #FF8E8E 100%)',
+                  color: '#fff',
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px'
+                }}
+              >
+                🎯 Focus
+              </button>
+              {/* Theme Switcher */}
+              <ThemeSwitcher />
               <button
                 onClick={handleSignOut}
                 aria-label="Sign out"
@@ -1034,6 +1072,7 @@ function App() {
                   />
                 </div>
                 <AnalyticsDashboard stats={stats} blocks={blocks} />
+                <GoalsPanel blocks={blocks} stats={stats} />
               </div>
             </div>
           </main>
@@ -1073,6 +1112,29 @@ function App() {
             confirmStyle="danger"
             onConfirm={handleConfirmDelete}
             onCancel={handleCancelDelete}
+          />
+
+          {/* Focus Mode */}
+          <FocusMode
+            isOpen={showFocusMode}
+            onClose={() => setShowFocusMode(false)}
+            currentTask={activeBlock?.title}
+            preferences={preferences}
+            onPomodoroComplete={handlePomodoroComplete}
+            onComplete={(sessions) => {
+              if (sessions > 0) {
+                updateStreak(true);
+                toast.success(`Great session! ${sessions} pomodoro${sessions > 1 ? 's' : ''} completed.`);
+              }
+            }}
+          />
+
+          {/* Quick Add */}
+          <QuickAdd
+            isOpen={showQuickAdd}
+            onClose={() => setShowQuickAdd(false)}
+            onAdd={handleAddBlock}
+            selectedDate={selectedDate}
           />
 
           {/* Toast Notifications */}
