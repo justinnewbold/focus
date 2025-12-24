@@ -8,6 +8,7 @@ export { default as ErrorBoundary } from './ErrorBoundary';
 export { default as LoadingScreen } from './LoadingScreen';
 export { default as SyncStatus } from './SyncStatus';
 export { ToastContainer, ToastItem } from './Toast';
+export { default as ConfirmDialog } from './ConfirmDialog';
 
 // Modals
 export { AddBlockModal, EditBlockModal, TimerSettingsModal } from './modals';

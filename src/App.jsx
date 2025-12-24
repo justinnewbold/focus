@@ -12,6 +12,7 @@ import {
   LoadingScreen,
   SyncStatus,
   ToastContainer,
+  ConfirmDialog,
   AddBlockModal,
   EditBlockModal,
   TimerSettingsModal
@@ -29,7 +30,14 @@ import {
   getToday,
   getCurrentHour,
   generateHoursArray,
-  getBlocksForHour
+  getBlocksForHour,
+  cacheBlocks,
+  getCachedBlocks,
+  isOnline,
+  subscribeToNetworkStatus,
+  exportBlocksCSV,
+  exportBlocksJSON,
+  withRetry
 } from './utils';
 import { timerStorage, deletedBlocksStorage } from './utils/storage';
 import { requestNotificationPermission } from './utils/notifications';
@@ -100,6 +108,9 @@ function App() {
   const [selectedDate, setSelectedDate] = useState(getToday());
   const [activeBlockId, setActiveBlockId] = useState(null);
   const [viewMode, setViewMode] = useState('week');
+  const [networkOnline, setNetworkOnline] = useState(isOnline());
+  const [confirmDialog, setConfirmDialog] = useState({ isOpen: false, block: null });
+  const [showExportMenu, setShowExportMenu] = useState(false);
 
   // Refs
   const timerRef = useRef(null);
@@ -144,24 +155,64 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Load user data
+  // Network status subscription
+  useEffect(() => {
+    const unsubscribe = subscribeToNetworkStatus(
+      () => {
+        setNetworkOnline(true);
+        toast.success('Back online!');
+        loadData(); // Refresh data when back online
+      },
+      () => {
+        setNetworkOnline(false);
+        toast.warning('You are offline. Changes will sync when reconnected.');
+      }
+    );
+    return unsubscribe;
+  }, [toast]);
+
+  // Load user data with retry and offline cache support
   const loadData = useCallback(async () => {
     if (!user) return;
 
     setIsSyncing(true);
     try {
-      const [blocksData, statsData, prefsData] = await Promise.all([
-        db.getTimeBlocks(user.id),
-        db.getPomodoroStats(user.id),
-        db.getPreferences(user.id)
-      ]);
+      // Try to load from server with retry
+      const fetchData = async () => {
+        const [blocksData, statsData, prefsData] = await Promise.all([
+          db.getTimeBlocks(user.id),
+          db.getPomodoroStats(user.id),
+          db.getPreferences(user.id)
+        ]);
+        return { blocksData, statsData, prefsData };
+      };
+
+      const { blocksData, statsData, prefsData } = await withRetry(fetchData, {
+        maxRetries: 3,
+        onRetry: (info) => {
+          toast.info(`Retrying... (${info.attempt}/${info.maxRetries})`);
+        }
+      });
 
       setBlocks(blocksData || []);
       setStats(statsData || []);
       setPreferences(prefsData || {});
+
+      // Cache blocks for offline access
+      if (blocksData) {
+        cacheBlocks(blocksData);
+      }
     } catch (error) {
       console.error('Error loading data:', error);
-      toast.error('Failed to load data. Please refresh.');
+
+      // Try to load from cache if offline
+      const cached = getCachedBlocks();
+      if (cached?.blocks) {
+        setBlocks(cached.blocks);
+        toast.warning('Showing cached data. Some info may be outdated.');
+      } else {
+        toast.error('Failed to load data. Please check your connection.');
+      }
     } finally {
       setIsSyncing(false);
     }
@@ -243,28 +294,34 @@ function App() {
     }
   }, [user, toast, loadData]);
 
-  const handleDeleteBlock = useCallback(async (id) => {
-    if (!user) return;
+  // Show delete confirmation dialog
+  const handleDeleteBlockRequest = useCallback((id) => {
+    const block = blocks.find(b => b.id === id);
+    if (block) {
+      setConfirmDialog({ isOpen: true, block });
+    }
+  }, [blocks]);
+
+  // Actually delete the block after confirmation
+  const handleDeleteBlock = useCallback(async (block) => {
+    if (!user || !block) return;
 
     // Save for undo
-    const blockToDelete = blocks.find(b => b.id === id);
-    if (blockToDelete) {
-      deletedBlocksStorage.save(blockToDelete);
-    }
+    deletedBlocksStorage.save(block);
 
     setIsSyncing(true);
     // Optimistic delete
-    setBlocks(prev => prev.filter(b => b.id !== id));
+    setBlocks(prev => prev.filter(b => b.id !== block.id));
 
     try {
-      const { error } = await db.deleteTimeBlock(user.id, id);
+      const { error } = await db.deleteTimeBlock(user.id, block.id);
       if (error) {
         toast.error('Failed to delete block.');
         loadData();
       } else {
         toast.success('Block deleted.', {
           label: 'Undo',
-          onClick: () => handleUndoDelete(blockToDelete)
+          onClick: () => handleUndoDelete(block)
         });
       }
     } catch (error) {
@@ -273,7 +330,32 @@ function App() {
     } finally {
       setIsSyncing(false);
     }
-  }, [user, blocks, toast, loadData]);
+  }, [user, toast, loadData]);
+
+  // Handle confirm dialog actions
+  const handleConfirmDelete = useCallback(() => {
+    if (confirmDialog.block) {
+      handleDeleteBlock(confirmDialog.block);
+    }
+    setConfirmDialog({ isOpen: false, block: null });
+  }, [confirmDialog.block, handleDeleteBlock]);
+
+  const handleCancelDelete = useCallback(() => {
+    setConfirmDialog({ isOpen: false, block: null });
+  }, []);
+
+  // Export handlers
+  const handleExportCSV = useCallback(() => {
+    exportBlocksCSV(blocks);
+    setShowExportMenu(false);
+    toast.success('Exported to CSV!');
+  }, [blocks, toast]);
+
+  const handleExportJSON = useCallback(() => {
+    exportBlocksJSON(blocks);
+    setShowExportMenu(false);
+    toast.success('Exported to JSON!');
+  }, [blocks, toast]);
 
   const handleUndoDelete = useCallback(async (block) => {
     if (!user || !block) return;
@@ -482,6 +564,83 @@ function App() {
                 <span style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)' }}>
                   {user.email?.split('@')[0]}
                 </span>
+              </div>
+              {/* Export Menu */}
+              <div style={{ position: 'relative' }}>
+                <button
+                  onClick={() => setShowExportMenu(!showExportMenu)}
+                  aria-label="Export data"
+                  aria-expanded={showExportMenu}
+                  style={{
+                    padding: '10px 16px',
+                    borderRadius: '12px',
+                    border: '1px solid rgba(255,255,255,0.2)',
+                    background: 'transparent',
+                    color: 'rgba(255,255,255,0.7)',
+                    fontSize: '14px',
+                    fontWeight: '500',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px'
+                  }}
+                >
+                  📥 Export
+                </button>
+                {showExportMenu && (
+                  <div
+                    style={{
+                      position: 'absolute',
+                      top: '100%',
+                      right: 0,
+                      marginTop: '8px',
+                      background: 'linear-gradient(135deg, #1a1a2e 0%, #16213e 100%)',
+                      borderRadius: '12px',
+                      border: '1px solid rgba(255,255,255,0.1)',
+                      padding: '8px',
+                      zIndex: 100,
+                      minWidth: '150px',
+                      boxShadow: '0 10px 40px rgba(0,0,0,0.3)'
+                    }}
+                  >
+                    <button
+                      onClick={handleExportCSV}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'rgba(255,255,255,0.8)',
+                        fontSize: '13px',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        borderRadius: '8px'
+                      }}
+                      onMouseEnter={(e) => e.target.style.background = 'rgba(255,255,255,0.1)'}
+                      onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                    >
+                      📄 Export as CSV
+                    </button>
+                    <button
+                      onClick={handleExportJSON}
+                      style={{
+                        width: '100%',
+                        padding: '10px 12px',
+                        background: 'transparent',
+                        border: 'none',
+                        color: 'rgba(255,255,255,0.8)',
+                        fontSize: '13px',
+                        textAlign: 'left',
+                        cursor: 'pointer',
+                        borderRadius: '8px'
+                      }}
+                      onMouseEnter={(e) => e.target.style.background = 'rgba(255,255,255,0.1)'}
+                      onMouseLeave={(e) => e.target.style.background = 'transparent'}
+                    >
+                      📋 Export as JSON
+                    </button>
+                  </div>
+                )}
               </div>
               <button
                 onClick={handleSignOut}
@@ -708,7 +867,7 @@ function App() {
                                         <TimeBlock
                                           block={block}
                                           onUpdate={handleUpdateBlock}
-                                          onDelete={handleDeleteBlock}
+                                          onDelete={handleDeleteBlockRequest}
                                           isActive={block.id === activeBlockId}
                                           isCompact={true}
                                           onEdit={setEditingBlock}
@@ -791,7 +950,7 @@ function App() {
                                     <TimeBlock
                                       block={block}
                                       onUpdate={handleUpdateBlock}
-                                      onDelete={handleDeleteBlock}
+                                      onDelete={handleDeleteBlockRequest}
                                       isActive={block.id === activeBlockId}
                                       onEdit={setEditingBlock}
                                       onStartTimer={handleStartTimer}
@@ -903,6 +1062,18 @@ function App() {
               onClose={() => setShowTimerSettings(false)}
             />
           )}
+
+          {/* Delete Confirmation Dialog */}
+          <ConfirmDialog
+            isOpen={confirmDialog.isOpen}
+            title="Delete Block?"
+            message={`Are you sure you want to delete "${confirmDialog.block?.title || 'this block'}"? You can undo this action.`}
+            confirmLabel="Delete"
+            cancelLabel="Cancel"
+            confirmStyle="danger"
+            onConfirm={handleConfirmDelete}
+            onCancel={handleCancelDelete}
+          />
 
           {/* Toast Notifications */}
           <ToastContainer toasts={toast.toasts} onRemove={toast.removeToast} />

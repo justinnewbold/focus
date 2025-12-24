@@ -32,3 +32,38 @@ export {
   notify,
   isNotificationSupported
 } from './notifications';
+
+// Offline cache utilities
+export {
+  getCachedBlocks,
+  cacheBlocks,
+  clearCache,
+  isCacheStale,
+  queuePendingOperation,
+  getPendingOperations,
+  removePendingOperation,
+  clearPendingOperations,
+  isOnline,
+  subscribeToNetworkStatus
+} from './offlineCache';
+
+// Data export utilities
+export {
+  blocksToCSV,
+  blocksToJSON,
+  generateAnalyticsCSV,
+  downloadFile,
+  exportBlocksCSV,
+  exportBlocksJSON,
+  exportAnalyticsCSV
+} from './dataExport';
+
+// Retry utilities
+export {
+  withRetry,
+  createRetryableFunction,
+  calculateBackoff,
+  sleep,
+  RetryQueue,
+  createRetryState
+} from './retry';
