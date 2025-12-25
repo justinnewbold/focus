@@ -1,118 +1,78 @@
 # FOCUS ⏱️
 
-A beautiful time blocking app with Pomodoro timer, built with React and Supabase.
+A powerful productivity app combining time blocking with Pomodoro timers, AI-powered insights, and Google Calendar sync.
 
-![FOCUS](https://img.shields.io/badge/FOCUS-v2.0.0-FF6B6B)
-![React](https://img.shields.io/badge/React-18.2-61DAFB)
-![Supabase](https://img.shields.io/badge/Supabase-Postgres-3ECF8E)
-![Vercel](https://img.shields.io/badge/Deployed-Vercel-000000)
-
-## 🚀 Live Demo
-
-**[focus.newbold.cloud](https://focus.newbold.cloud)**
+**Live App:** [focus.newbold.cloud](https://focus.newbold.cloud)
 
 ## ✨ Features
 
-- **🍅 Pomodoro Timer**: 25-minute focus sessions with 5/15-minute breaks
-- **📅 Time Blocking**: Plan your day from 6 AM to 9 PM
-- **📆 Week View**: Navigate and plan your entire week
-- **🔄 Recurring Tasks**: Set daily, weekday, or weekly recurring blocks
-- **📊 Analytics Dashboard**: Track hours planned, focus time, and completed pomodoros
-- **🔐 User Authentication**: Google OAuth sign-in via Supabase
-- **🔔 Browser Notifications**: Get notified when timers complete
-- **🎨 Beautiful UI**: Modern dark theme with gradient accents
-- **☁️ Cloud Sync**: Data persists with Supabase PostgreSQL
-- **📱 Offline Support**: LocalStorage fallback when offline
+### Core Features
+- 📅 **Weekly Time Blocking** - Plan your week with drag-and-drop blocks
+- 🍅 **Pomodoro Timer** - Customizable focus sessions (5min - 2hr)
+- 📊 **Analytics Dashboard** - Track your productivity patterns
+- 🎯 **Goals & Streaks** - Set daily/weekly goals and maintain streaks
+- 🌙 **Dark Mode** - Multiple themes (Light, Dark, Midnight Blue, Sunset)
+- 📱 **PWA Support** - Install on mobile, works offline
 
-## 🏗️ Tech Stack
+### AI Features (Gemini-powered)
+- 🤖 **AI Assistant** - Daily personalized productivity insights
+- 📈 **Focus Score** - AI-calculated productivity rating
+- 💡 **Smart Suggestions** - AI recommendations based on your patterns
+- 📝 **Weekly AI Reports** - Auto-generated productivity summaries
 
-- **Frontend**: React 18, Vite
-- **Database**: Supabase (PostgreSQL)
-- **Auth**: Supabase Auth with Google OAuth
-- **Hosting**: Vercel
-- **Styling**: Inline styles with CSS-in-JS
+### Google Calendar Integration
+- 🔄 **Two-way Sync** - Push blocks to Google Calendar
+- 📥 **Import Events** - Pull calendar events as FOCUS blocks
+- 📆 **Multi-calendar** - Choose which calendar to sync
 
-## 📦 Setup
+### Productivity Tools
+- ⚡ **Quick Add (⌘K)** - Rapidly add blocks with natural language
+- 🧘 **Focus Mode** - Distraction-free full-screen timer
+- ⌨️ **Keyboard Shortcuts** - Navigate entirely with keyboard
+- 🔔 **Push Notifications** - Get alerted when timers complete
 
-### 1. Clone and Install
+## ⌨️ Keyboard Shortcuts
 
-```bash
-git clone https://github.com/justinnewbold/focus.git
-cd focus
-npm install
-```
+| Shortcut | Action |
+|----------|--------|
+| `N` | New block |
+| `Q` | Quick add |
+| `A` | Open analytics |
+| `F` | Focus mode |
+| `Space` | Toggle timer |
+| `R` | Reset timer |
+| `Escape` | Close modals |
 
-### 2. Supabase Setup
+## 🛠️ Tech Stack
 
-1. Go to your Supabase project dashboard
-2. Navigate to **SQL Editor**
-3. Copy and paste the contents of `supabase/schema.sql`
-4. Click **Run** to create the tables
+- **Frontend:** React 18 + Vite
+- **Backend:** Supabase (Auth, Database, Realtime)
+- **AI:** Google Gemini API
+- **Calendar:** Google Calendar API
+- **Hosting:** Vercel
+- **PWA:** vite-plugin-pwa
 
-### 3. Environment Variables
-
-The environment variables are automatically configured when you connect Supabase to Vercel.
-
-For local development, create a `.env.local` file:
+## 📦 Environment Variables
 
 ```env
 VITE_SUPABASE_URL=your_supabase_url
 VITE_SUPABASE_ANON_KEY=your_supabase_anon_key
+VITE_GEMINI_API_KEY=your_gemini_api_key
+VITE_GOOGLE_API_KEY=your_google_api_key
+VITE_GOOGLE_CLIENT_ID=your_google_client_id
 ```
 
-### 4. Run Locally
+## 🚀 Development
 
 ```bash
+npm install
 npm run dev
 ```
 
-## 📊 Database Schema
-
-### time_blocks
-| Column | Type | Description |
-|--------|------|-------------|
-| id | BIGSERIAL | Primary key |
-| user_id | UUID | User reference |
-| hour | INTEGER | Hour of the day (0-23) |
-| title | TEXT | Task name |
-| category | TEXT | work, meeting, break, personal, learning, exercise |
-| duration | INTEGER | Duration in hours (1-8) |
-| pomodoro_count | INTEGER | Completed pomodoros |
-| completed | BOOLEAN | Task completion status |
-| date | DATE | Date of the time block |
-| is_recurring | BOOLEAN | Whether task repeats |
-| recurrence_pattern | TEXT | daily, weekdays, weekly |
-
-### pomodoro_stats
-| Column | Type | Description |
-|--------|------|-------------|
-| id | BIGSERIAL | Primary key |
-| user_id | UUID | User reference |
-| date | DATE | Unique date |
-| pomodoros_completed | INTEGER | Total pomodoros for the day |
-| focus_minutes | INTEGER | Total focus minutes |
-
-## 🎯 Task Categories
-
-- 🔴 **Work** - Deep work and focus tasks
-- 🟣 **Meeting** - Calls and meetings
-- 🟢 **Break** - Rest and relaxation
-- 🟡 **Personal** - Personal tasks
-- 🔵 **Learning** - Study and learning
-- 🟠 **Exercise** - Physical activity
-
-## ⌨️ Keyboard Shortcuts
-
-| Key | Action |
-|-----|--------|
-| Space | Start/Pause Timer |
-| R | Reset Timer |
-| N | New Block |
-
 ## 📄 License
 
-MIT License - feel free to use this for your own projects!
+MIT License - feel free to use this project for your own productivity needs!
 
 ---
 
-Built with ❤️ using React and Supabase
+Built with ❤️ using React, Supabase, and AI
