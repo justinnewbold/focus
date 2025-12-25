@@ -1,36 +1,51 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import PropTypes from 'prop-types';
-import { generateProductivityInsights, getSchedulingSuggestions } from '../services/aiService';
+import { generateProductivityInsights, getFallbackInsights } from '../services/aiService';
 
 /**
  * AI Productivity Assistant Component
  * Provides personalized insights and suggestions powered by Gemini
  */
-export default function AIAssistant({ blocks, stats, preferences, onSuggestionApply }) {
+export default function AIAssistant({ blocks, stats, preferences }) {
   const [insights, setInsights] = useState(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isExpanded, setIsExpanded] = useState(true);
   const [lastRefresh, setLastRefresh] = useState(null);
+  const hasLoadedRef = useRef(false);
+  const refreshIntervalRef = useRef(null);
 
-  const loadInsights = useCallback(async () => {
+  // Load insights only once on mount
+  useEffect(() => {
+    if (hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
+    
+    loadInsights();
+    
+    // Refresh every 30 minutes
+    refreshIntervalRef.current = setInterval(() => {
+      loadInsights();
+    }, 30 * 60 * 1000);
+    
+    return () => {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+      }
+    };
+  }, []); // Empty dependency array - only run once
+
+  const loadInsights = async () => {
     setIsLoading(true);
     try {
       const data = await generateProductivityInsights(blocks, stats, preferences);
       setInsights(data);
       setLastRefresh(new Date());
     } catch (error) {
-      console.error('Failed to load insights:', error);
+      console.warn('Using fallback insights');
+      setInsights(getFallbackInsights(blocks, stats));
     } finally {
       setIsLoading(false);
     }
-  }, [blocks, stats, preferences]);
-
-  useEffect(() => {
-    loadInsights();
-    // Refresh insights every 30 minutes
-    const interval = setInterval(loadInsights, 30 * 60 * 1000);
-    return () => clearInterval(interval);
-  }, [loadInsights]);
+  };
 
   const handleRefresh = () => {
     loadInsights();
@@ -80,8 +95,7 @@ export default function AIAssistant({ blocks, stats, preferences, onSuggestionAp
       borderRadius: '16px',
       padding: '20px',
       marginBottom: '20px',
-      border: '1px solid rgba(102, 126, 234, 0.2)',
-      position: 'relative'
+      border: '1px solid rgba(102, 126, 234, 0.2)'
     }}>
       {/* Header */}
       <div style={{
@@ -90,28 +104,21 @@ export default function AIAssistant({ blocks, stats, preferences, onSuggestionAp
         alignItems: 'center',
         marginBottom: '16px'
       }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '24px' }}>🤖</span>
-          <div>
-            <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: 'var(--text-primary, #1a1a2e)' }}>
-              AI Assistant
-            </h3>
-            <span style={{ fontSize: '11px', color: 'var(--text-secondary, #64748b)' }}>
-              Powered by Gemini
-            </span>
-          </div>
+          <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600' }}>AI Assistant</h3>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button
             onClick={handleRefresh}
             disabled={isLoading}
             style={{
-              background: 'transparent',
+              background: 'none',
               border: 'none',
-              cursor: isLoading ? 'not-allowed' : 'pointer',
+              cursor: isLoading ? 'wait' : 'pointer',
               fontSize: '16px',
               opacity: isLoading ? 0.5 : 1,
-              transition: 'transform 0.3s ease'
+              transition: 'transform 0.2s'
             }}
             title="Refresh insights"
           >
@@ -120,175 +127,155 @@ export default function AIAssistant({ blocks, stats, preferences, onSuggestionAp
           <button
             onClick={() => setIsExpanded(false)}
             style={{
-              background: 'transparent',
+              background: 'none',
               border: 'none',
               cursor: 'pointer',
-              fontSize: '16px',
-              color: 'var(--text-secondary, #64748b)'
+              fontSize: '16px'
             }}
             title="Minimize"
           >
-            ✕
+            ➖
           </button>
         </div>
       </div>
 
-      {isLoading ? (
+      {isLoading && !insights ? (
         <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '30px',
-          color: 'var(--text-secondary, #64748b)'
+          textAlign: 'center',
+          padding: '20px',
+          color: '#6b7280'
         }}>
-          <div style={{
-            width: '24px',
-            height: '24px',
-            border: '3px solid rgba(102, 126, 234, 0.2)',
-            borderTopColor: '#667eea',
-            borderRadius: '50%',
-            animation: 'spin 1s linear infinite',
-            marginRight: '12px'
-          }} />
-          Analyzing your productivity...
+          <div style={{ fontSize: '32px', marginBottom: '8px' }}>✨</div>
+          <p>Analyzing your productivity...</p>
         </div>
       ) : insights ? (
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
-          {/* Greeting */}
-          <p style={{
-            margin: 0,
-            fontSize: '18px',
-            fontWeight: '500',
-            color: 'var(--text-primary, #1a1a2e)'
-          }}>
-            {insights.greeting}
-          </p>
-
+        <>
           {/* Focus Score */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
-            gap: '12px',
-            padding: '12px 16px',
-            background: 'var(--bg-secondary, #f8fafc)',
+            gap: '16px',
+            marginBottom: '16px',
+            padding: '12px',
+            background: 'rgba(255,255,255,0.5)',
             borderRadius: '12px'
           }}>
             <div style={{
-              width: '50px',
-              height: '50px',
+              width: '60px',
+              height: '60px',
               borderRadius: '50%',
-              background: `conic-gradient(${getFocusScoreColor(insights.focusScore)} ${insights.focusScore * 3.6}deg, #e2e8f0 0deg)`,
+              background: `conic-gradient(${getFocusScoreColor(insights.focusScore)} ${insights.focusScore * 3.6}deg, #e5e7eb 0deg)`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
               position: 'relative'
             }}>
               <div style={{
-                width: '40px',
-                height: '40px',
+                width: '48px',
+                height: '48px',
                 borderRadius: '50%',
-                background: 'var(--bg-secondary, #f8fafc)',
+                background: 'white',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                fontSize: '14px',
-                fontWeight: '700',
+                fontWeight: 'bold',
+                fontSize: '16px',
                 color: getFocusScoreColor(insights.focusScore)
               }}>
                 {insights.focusScore}
               </div>
             </div>
             <div>
-              <div style={{ fontSize: '12px', color: 'var(--text-secondary, #64748b)', marginBottom: '2px' }}>
-                Focus Score
-              </div>
-              <div style={{ fontSize: '14px', fontWeight: '500', color: 'var(--text-primary, #1a1a2e)' }}>
-                {insights.focusScore >= 80 ? 'Excellent!' : insights.focusScore >= 60 ? 'Good progress' : 'Room to grow'}
+              <div style={{ fontWeight: '600', marginBottom: '4px' }}>Focus Score</div>
+              <div style={{ fontSize: '14px', color: '#6b7280' }}>
+                {insights.focusScore >= 80 ? 'Excellent!' : 
+                 insights.focusScore >= 60 ? 'Good progress' : 'Room to grow'}
               </div>
             </div>
+          </div>
+
+          {/* Greeting */}
+          <div style={{
+            fontSize: '18px',
+            fontWeight: '500',
+            marginBottom: '12px',
+            color: '#374151'
+          }}>
+            {insights.greeting}
           </div>
 
           {/* Today's Insight */}
           <div style={{
-            padding: '12px 16px',
-            background: 'rgba(59, 130, 246, 0.1)',
-            borderRadius: '12px',
-            borderLeft: '4px solid #3b82f6'
+            background: 'rgba(102, 126, 234, 0.1)',
+            padding: '12px',
+            borderRadius: '8px',
+            marginBottom: '12px',
+            borderLeft: '3px solid #667eea'
           }}>
-            <div style={{ fontSize: '11px', color: '#3b82f6', fontWeight: '600', marginBottom: '4px' }}>
-              📊 TODAY'S INSIGHT
+            <div style={{ fontSize: '12px', color: '#667eea', marginBottom: '4px', fontWeight: '500' }}>
+              TODAY'S INSIGHT
             </div>
-            <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-primary, #1a1a2e)', lineHeight: '1.5' }}>
+            <div style={{ fontSize: '14px', color: '#374151' }}>
               {insights.todayInsight}
-            </p>
+            </div>
           </div>
 
           {/* Suggestion */}
           <div style={{
-            padding: '12px 16px',
-            background: 'rgba(16, 185, 129, 0.1)',
-            borderRadius: '12px',
-            borderLeft: '4px solid #10b981'
+            background: 'rgba(245, 158, 11, 0.1)',
+            padding: '12px',
+            borderRadius: '8px',
+            marginBottom: '12px',
+            borderLeft: '3px solid #f59e0b'
           }}>
-            <div style={{ fontSize: '11px', color: '#10b981', fontWeight: '600', marginBottom: '4px' }}>
+            <div style={{ fontSize: '12px', color: '#d97706', marginBottom: '4px', fontWeight: '500' }}>
               💡 SUGGESTION
             </div>
-            <p style={{ margin: 0, fontSize: '14px', color: 'var(--text-primary, #1a1a2e)', lineHeight: '1.5' }}>
+            <div style={{ fontSize: '14px', color: '#374151' }}>
               {insights.suggestion}
-            </p>
+            </div>
           </div>
 
           {/* Encouragement */}
           <div style={{
-            padding: '12px 16px',
-            background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.15) 0%, rgba(118, 75, 162, 0.15) 100%)',
-            borderRadius: '12px',
-            textAlign: 'center'
+            textAlign: 'center',
+            padding: '12px',
+            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(6, 182, 212, 0.1) 100%)',
+            borderRadius: '8px',
+            fontSize: '14px',
+            color: '#059669'
           }}>
-            <p style={{
-              margin: 0,
-              fontSize: '15px',
-              fontWeight: '500',
-              color: '#667eea'
-            }}>
-              {insights.encouragement}
-            </p>
+            {insights.encouragement}
           </div>
 
-          {/* Streak */}
-          {insights.streakMessage && (
+          {/* Last refresh time */}
+          {lastRefresh && (
             <div style={{
-              fontSize: '12px',
-              color: 'var(--text-secondary, #64748b)',
-              textAlign: 'center'
+              marginTop: '12px',
+              fontSize: '11px',
+              color: '#9ca3af',
+              textAlign: 'right'
             }}>
-              🔥 {insights.streakMessage}
+              Updated {lastRefresh.toLocaleTimeString()}
             </div>
           )}
-        </div>
+        </>
       ) : (
-        <p style={{ color: 'var(--text-secondary, #64748b)', textAlign: 'center' }}>
-          Unable to load insights. Please try again.
-        </p>
+        <div style={{ textAlign: 'center', color: '#6b7280', padding: '20px' }}>
+          <p>Unable to load insights. Click refresh to try again.</p>
+        </div>
       )}
-
-      <style>{`
-        @keyframes spin {
-          to { transform: rotate(360deg); }
-        }
-      `}</style>
     </div>
   );
 }
 
 AIAssistant.propTypes = {
   blocks: PropTypes.array.isRequired,
-  stats: PropTypes.array.isRequired,
-  preferences: PropTypes.object,
-  onSuggestionApply: PropTypes.func
+  stats: PropTypes.object,
+  preferences: PropTypes.object
 };
 
 AIAssistant.defaultProps = {
-  preferences: {},
-  onSuggestionApply: () => {}
+  stats: {},
+  preferences: {}
 };
