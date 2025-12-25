@@ -3,7 +3,13 @@
  * Provides daily insights, schedule optimization, and productivity analysis
  */
 
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
+// Use gemini-pro which is more widely available
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
+
+// Track if API is working to prevent spam
+let apiAvailable = true;
+let lastApiCheck = 0;
+const API_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes between retries after failure
 
 /**
  * Generate AI productivity insights based on user's schedule and stats
@@ -13,6 +19,11 @@ export async function generateProductivityInsights(blocks, stats, preferences = 
   
   if (!apiKey) {
     console.warn('Gemini API key not configured');
+    return getFallbackInsights(blocks, stats);
+  }
+
+  // If API failed recently, use fallback without retrying
+  if (!apiAvailable && Date.now() - lastApiCheck < API_CHECK_INTERVAL) {
     return getFallbackInsights(blocks, stats);
   }
 
@@ -41,9 +52,13 @@ export async function generateProductivityInsights(blocks, stats, preferences = 
     });
 
     if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.status}`);
+      apiAvailable = false;
+      lastApiCheck = Date.now();
+      console.warn(`Gemini API error: ${response.status} - using fallback`);
+      return getFallbackInsights(blocks, stats);
     }
 
+    apiAvailable = true;
     const data = await response.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
     
@@ -51,20 +66,22 @@ export async function generateProductivityInsights(blocks, stats, preferences = 
       return getFallbackInsights(blocks, stats);
     }
 
-    return parseAIResponse(text);
+    return parseInsightsResponse(text, blocks, stats);
   } catch (error) {
-    console.error('AI insights error:', error);
+    apiAvailable = false;
+    lastApiCheck = Date.now();
+    console.warn('AI insights error:', error.message, '- using fallback');
     return getFallbackInsights(blocks, stats);
   }
 }
 
 /**
- * Generate AI-powered weekly report
+ * Generate weekly productivity report
  */
 export async function generateWeeklyReport(blocks, stats) {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   
-  if (!apiKey) {
+  if (!apiKey || (!apiAvailable && Date.now() - lastApiCheck < API_CHECK_INTERVAL)) {
     return getFallbackWeeklyReport(blocks, stats);
   }
 
@@ -84,42 +101,35 @@ export async function generateWeeklyReport(blocks, stats) {
     });
 
     if (!response.ok) {
-      throw new Error(`Gemini API error: ${response.status}`);
+      apiAvailable = false;
+      lastApiCheck = Date.now();
+      return getFallbackWeeklyReport(blocks, stats);
     }
 
+    apiAvailable = true;
     const data = await response.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
     
     return text || getFallbackWeeklyReport(blocks, stats);
   } catch (error) {
-    console.error('Weekly report error:', error);
+    apiAvailable = false;
+    lastApiCheck = Date.now();
+    console.warn('Weekly report error:', error.message);
     return getFallbackWeeklyReport(blocks, stats);
   }
 }
 
 /**
- * Get AI suggestions for optimal scheduling
+ * Get AI-powered scheduling suggestions
  */
-export async function getSchedulingSuggestions(blocks, taskType, duration) {
+export async function getSchedulingSuggestions(blocks, newBlockCategory, preferredTimes = []) {
   const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
   
-  if (!apiKey) {
-    return getDefaultSchedulingSuggestions(blocks, taskType);
+  if (!apiKey || (!apiAvailable && Date.now() - lastApiCheck < API_CHECK_INTERVAL)) {
+    return getFallbackSchedulingSuggestions(blocks, newBlockCategory);
   }
 
-  const prompt = `Based on this user's schedule pattern, suggest the best time slots for a ${duration}-minute ${taskType} session.
-
-Current schedule for today:
-${JSON.stringify(blocks.filter(b => b.date === new Date().toISOString().split('T')[0]), null, 2)}
-
-Respond with a JSON object containing:
-{
-  "suggestions": [
-    {"hour": 9, "reason": "Your energy is typically highest in the morning"},
-    {"hour": 14, "reason": "Good slot after lunch break"}
-  ],
-  "tip": "A brief productivity tip"
-}`;
+  const prompt = buildSchedulingPrompt(blocks, newBlockCategory, preferredTimes);
 
   try {
     const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
@@ -134,146 +144,217 @@ Respond with a JSON object containing:
       })
     });
 
+    if (!response.ok) {
+      apiAvailable = false;
+      lastApiCheck = Date.now();
+      return getFallbackSchedulingSuggestions(blocks, newBlockCategory);
+    }
+
+    apiAvailable = true;
     const data = await response.json();
     const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
     
-    // Try to parse JSON from response
-    const jsonMatch = text?.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      return JSON.parse(jsonMatch[0]);
-    }
-    
-    return getDefaultSchedulingSuggestions(blocks, taskType);
+    return parseSchedulingSuggestions(text) || getFallbackSchedulingSuggestions(blocks, newBlockCategory);
   } catch (error) {
-    console.error('Scheduling suggestions error:', error);
-    return getDefaultSchedulingSuggestions(blocks, taskType);
+    apiAvailable = false;
+    lastApiCheck = Date.now();
+    return getFallbackSchedulingSuggestions(blocks, newBlockCategory);
   }
 }
 
-// Helper functions
+// ============ PROMPT BUILDERS ============
+
 function buildInsightsPrompt(todayBlocks, weekBlocks, stats, preferences) {
-  const categories = {};
-  weekBlocks.forEach(b => {
-    categories[b.category] = (categories[b.category] || 0) + (b.duration || 25);
-  });
+  const hour = new Date().getHours();
+  const timeOfDay = hour < 12 ? 'morning' : hour < 17 ? 'afternoon' : 'evening';
+  
+  return `You are a friendly productivity coach. Analyze this schedule data and provide brief, actionable insights.
 
-  const completedPomodoros = stats.filter(s => s.completed).length;
-  const totalFocusTime = stats.reduce((acc, s) => acc + (s.duration || 0), 0);
+Today's Schedule (${todayBlocks.length} blocks):
+${todayBlocks.map(b => `- ${b.title} (${b.category}) at ${b.start_time}`).join('\n') || 'No blocks scheduled yet'}
 
-  return `You are a productivity coach analyzing a user's time blocking schedule. Provide brief, actionable insights.
+This Week's Stats:
+- Total blocks: ${weekBlocks.length}
+- Completed pomodoros: ${stats?.completedPomodoros || 0}
+- Current streak: ${stats?.currentStreak || 0} days
 
-TODAY'S SCHEDULE (${todayBlocks.length} blocks):
-${todayBlocks.map(b => `- ${b.title} (${b.category}, ${b.duration || 25}min at ${b.hour}:00)`).join('\n') || 'No blocks scheduled yet'}
+Time: ${timeOfDay}
 
-THIS WEEK'S CATEGORY BREAKDOWN (minutes):
-${Object.entries(categories).map(([cat, mins]) => `- ${cat}: ${mins} minutes`).join('\n') || 'No data yet'}
-
-POMODORO STATS:
-- Completed sessions: ${completedPomodoros}
-- Total focus time: ${Math.round(totalFocusTime / 60)} hours
-
-Respond with a JSON object:
+Respond in JSON format:
 {
-  "greeting": "A brief personalized greeting based on time of day",
-  "todayInsight": "One key observation about today's schedule",
-  "suggestion": "One actionable productivity suggestion",
-  "encouragement": "A brief motivational message",
-  "focusScore": 75,
-  "topCategory": "work",
-  "streakMessage": "Current streak status"
+  "greeting": "Brief personalized greeting for ${timeOfDay}",
+  "focusScore": <number 0-100 based on schedule quality>,
+  "todayInsight": "One sentence about today's schedule",
+  "suggestion": "One actionable suggestion",
+  "encouragement": "Brief motivational message"
 }`;
 }
 
 function buildWeeklyReportPrompt(blocks, stats) {
   const categories = {};
   blocks.forEach(b => {
-    categories[b.category] = (categories[b.category] || 0) + (b.duration || 25);
+    categories[b.category] = (categories[b.category] || 0) + 1;
   });
 
-  return `Generate a friendly, insightful weekly productivity report.
+  return `Create a brief weekly productivity report based on this data:
 
-WEEKLY DATA:
-- Total blocks: ${blocks.length}
-- Category breakdown: ${JSON.stringify(categories)}
-- Pomodoro sessions: ${stats.length}
-- Completed: ${stats.filter(s => s.completed).length}
+Blocks by category: ${JSON.stringify(categories)}
+Total blocks: ${blocks.length}
+Completed pomodoros: ${stats?.completedPomodoros || 0}
+Current streak: ${stats?.currentStreak || 0} days
+Goals met: ${stats?.goalsMetThisWeek || 0}
 
-Write a 3-paragraph report covering:
-1. Overall productivity summary with specific numbers
-2. Patterns noticed (best days, peak hours, category balance)
+Write a 3-4 paragraph report covering:
+1. Overview of productivity this week
+2. Time distribution analysis
 3. Recommendations for next week
 
-Keep it encouraging and actionable. Use emojis sparingly.`;
+Keep it friendly and encouraging.`;
 }
 
-function parseAIResponse(text) {
+function buildSchedulingPrompt(blocks, category, preferredTimes) {
+  const today = new Date().toISOString().split('T')[0];
+  const todayBlocks = blocks.filter(b => b.date === today);
+  const occupiedSlots = todayBlocks.map(b => b.start_time);
+
+  return `Suggest optimal time slots for a "${category}" block today.
+
+Already scheduled: ${occupiedSlots.join(', ') || 'Nothing yet'}
+Preferred times: ${preferredTimes.join(', ') || 'No preference'}
+Category: ${category}
+
+Respond with JSON array of 3 suggested times:
+["HH:00", "HH:00", "HH:00"]
+
+Consider: work blocks best 9-12am, meetings mid-day, personal/exercise evening.`;
+}
+
+// ============ RESPONSE PARSERS ============
+
+function parseInsightsResponse(text, blocks, stats) {
   try {
+    // Try to extract JSON from the response
     const jsonMatch = text.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      const parsed = JSON.parse(jsonMatch[0]);
+      return {
+        greeting: parsed.greeting || getTimeBasedGreeting(),
+        focusScore: Math.min(100, Math.max(0, parsed.focusScore || calculateFocusScore(blocks, stats))),
+        todayInsight: parsed.todayInsight || 'Ready to have a productive day!',
+        suggestion: parsed.suggestion || 'Start with your most important task.',
+        encouragement: parsed.encouragement || 'You\'ve got this! 💪'
+      };
+    }
+  } catch (e) {
+    // JSON parsing failed, use fallback
+  }
+  return getFallbackInsights(blocks, stats);
+}
+
+function parseSchedulingSuggestions(text) {
+  try {
+    const jsonMatch = text.match(/\[[\s\S]*\]/);
     if (jsonMatch) {
       return JSON.parse(jsonMatch[0]);
     }
   } catch (e) {
-    console.warn('Could not parse AI response as JSON');
+    // Parsing failed
   }
-  
-  return {
-    greeting: "Welcome back! 👋",
-    todayInsight: text.substring(0, 150),
-    suggestion: "Focus on your most important task first.",
-    encouragement: "You're making great progress!",
-    focusScore: 75,
-    topCategory: "work",
-    streakMessage: "Keep the momentum going!"
-  };
+  return null;
 }
 
-function getFallbackInsights(blocks, stats) {
+// ============ FALLBACK FUNCTIONS ============
+
+function getTimeBasedGreeting() {
+  const hour = new Date().getHours();
+  if (hour < 12) return 'Good morning! ☀️';
+  if (hour < 17) return 'Good afternoon! 🌤️';
+  return 'Good evening! 🌙';
+}
+
+function calculateFocusScore(blocks, stats) {
   const today = new Date().toISOString().split('T')[0];
   const todayBlocks = blocks.filter(b => b.date === today);
-  const hour = new Date().getHours();
   
-  let greeting = "Good morning! ☀️";
-  if (hour >= 12 && hour < 17) greeting = "Good afternoon! 🌤️";
-  if (hour >= 17) greeting = "Good evening! 🌙";
+  let score = 50; // Base score
+  
+  // +20 for having blocks scheduled
+  if (todayBlocks.length > 0) score += 20;
+  
+  // +15 for variety (multiple categories)
+  const categories = new Set(todayBlocks.map(b => b.category));
+  if (categories.size >= 3) score += 15;
+  else if (categories.size >= 2) score += 10;
+  
+  // +15 for completed pomodoros
+  if (stats?.completedPomodoros > 0) score += Math.min(15, stats.completedPomodoros * 3);
+  
+  return Math.min(100, score);
+}
 
+export function getFallbackInsights(blocks, stats) {
+  const today = new Date().toISOString().split('T')[0];
+  const todayBlocks = blocks.filter(b => b.date === today);
+  const focusScore = calculateFocusScore(blocks, stats);
+  
+  const insights = [
+    'Focus on one task at a time for better results.',
+    'Taking breaks improves overall productivity.',
+    'Morning hours are often best for deep work.',
+    'Batch similar tasks together to reduce context switching.',
+    'End your day by planning tomorrow.'
+  ];
+  
+  const encouragements = [
+    'You\'re making great progress! 🌟',
+    'Every block completed is a win! 💪',
+    'Stay focused, you\'ve got this! 🎯',
+    'Keep up the momentum! 🚀',
+    'Your dedication is inspiring! ✨'
+  ];
+  
   return {
-    greeting,
+    greeting: getTimeBasedGreeting(),
+    focusScore,
     todayInsight: todayBlocks.length > 0 
-      ? `You have ${todayBlocks.length} blocks scheduled today.`
-      : "No blocks scheduled yet. Ready to plan your day?",
-    suggestion: "Try batching similar tasks together for better focus.",
-    encouragement: "Every focused minute counts! 💪",
-    focusScore: Math.min(100, 50 + (stats.length * 2)),
-    topCategory: "work",
-    streakMessage: "Start a streak by completing daily goals!"
+      ? `You have ${todayBlocks.length} block${todayBlocks.length > 1 ? 's' : ''} scheduled today.`
+      : 'No blocks scheduled yet. Time to plan your day!',
+    suggestion: insights[Math.floor(Math.random() * insights.length)],
+    encouragement: encouragements[Math.floor(Math.random() * encouragements.length)]
   };
 }
 
 function getFallbackWeeklyReport(blocks, stats) {
-  const totalMinutes = blocks.reduce((acc, b) => acc + (b.duration || 25), 0);
-  const hours = Math.round(totalMinutes / 60);
+  const categories = {};
+  blocks.forEach(b => {
+    categories[b.category] = (categories[b.category] || 0) + 1;
+  });
   
-  return `## 📊 Weekly Productivity Report
+  const topCategory = Object.entries(categories).sort((a, b) => b[1] - a[1])[0];
+  
+  return `## Weekly Productivity Summary
 
-**Overview:** You scheduled ${blocks.length} time blocks this week, totaling approximately ${hours} hours of planned focus time. You completed ${stats.filter(s => s.completed).length} Pomodoro sessions.
+This week you scheduled **${blocks.length} blocks** across your calendar. ${topCategory ? `Your most active category was **${topCategory[0]}** with ${topCategory[1]} blocks.` : ''}
 
-**Highlights:** Your dedication to structured time management is paying off. The most effective productivity comes from consistent daily practice, not occasional intense sessions.
+${stats?.completedPomodoros > 0 ? `You completed **${stats.completedPomodoros} pomodoro sessions**, showing great dedication to focused work. ` : ''}${stats?.currentStreak > 0 ? `Your current streak is **${stats.currentStreak} days** - keep it going!` : ''}
 
-**Next Week:** Consider setting specific goals for each category and reviewing your schedule at the start of each day. Small improvements compound over time! 🚀`;
+### Recommendations for Next Week
+- Consider scheduling your most important tasks during your peak energy hours
+- Try to maintain a balance between different activity categories
+- Remember to include breaks to maintain sustainable productivity
+
+Keep up the great work! 🎯`;
 }
 
-function getDefaultSchedulingSuggestions(blocks, taskType) {
-  return {
-    suggestions: [
-      { hour: 9, reason: "Morning hours typically offer peak mental clarity" },
-      { hour: 14, reason: "Post-lunch slot good for focused work" }
-    ],
-    tip: "Match your most demanding tasks with your highest energy periods."
+function getFallbackSchedulingSuggestions(blocks, category) {
+  const suggestions = {
+    work: ['09:00', '10:00', '14:00'],
+    meeting: ['11:00', '14:00', '15:00'],
+    personal: ['17:00', '18:00', '19:00'],
+    learning: ['08:00', '16:00', '20:00'],
+    exercise: ['06:00', '17:00', '18:00'],
+    break: ['12:00', '15:00', '17:00']
   };
+  
+  return suggestions[category] || ['09:00', '14:00', '16:00'];
 }
-
-export default {
-  generateProductivityInsights,
-  generateWeeklyReport,
-  getSchedulingSuggestions
-};
