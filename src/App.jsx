@@ -317,6 +317,33 @@ function App() {
     }
   }, [user, toast]);
 
+  // Handle drag and drop of blocks
+  const handleBlockDrop = useCallback(async (block, target) => {
+    if (!user || !block || !target) return;
+    
+    const updates = {
+      date: target.date,
+      hour: target.hour,
+      start_minute: 0
+    };
+    
+    try {
+      const { error } = await db.updateTimeBlock(block.id, updates);
+      if (error) {
+        toast.error("Failed to move block");
+        return;
+      }
+      
+      setBlocks(prev => prev.map(b => 
+        b.id === block.id ? { ...b, ...updates } : b
+      ));
+      toast.success("Block moved!");
+    } catch (error) {
+      console.error("Error moving block:", error);
+      toast.error("Failed to move block");
+    }
+  }, [user, toast]);
+
   const handleDeleteBlock = useCallback(async (blockId) => {
     if (!user) return;
 
@@ -443,7 +470,7 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <DragProvider>
+      <DragProvider onDrop={handleBlockDrop}>
         <style>{globalStyles}</style>
         <div style={{
           minHeight: '100vh',
@@ -809,3 +836,4 @@ function App() {
 }
 
 export default App;
+
