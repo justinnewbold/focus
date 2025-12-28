@@ -600,80 +600,102 @@ function App() {
                   </button>
                 </div>
 
-                {/* Week Grid */}
-                <div className="week-grid-container" style={{
-                  background: 'var(--bg-secondary, white)',
-                  borderRadius: '16px',
-                  padding: '20px',
-                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                }}>
-                  {/* Day Headers */}
-                  <div className="week-grid" style={{
-                    display: 'grid',
-                    gridTemplateColumns: '60px repeat(7, 1fr)',
-                    gap: '8px'
+                {/* Day/Week View */}
+                {viewMode === 'day' ? (
+                  /* Day View */
+                  <div className="day-view-container" style={{
+                    background: 'var(--bg-secondary, white)',
+                    borderRadius: '16px',
+                    padding: '20px',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                   }}>
-                    <div /> {/* Empty corner */}
-                    {weekDates.map((date, i) => {
-                      const isToday = date === today;
-                      return (
-                        <div
-                          key={date}
-                          className="day-header"
-                          style={{
-                            textAlign: 'center',
-                            padding: '8px',
-                            borderRadius: '8px',
-                            background: isToday ? 'var(--accent-color, #FF6B6B)' : 'transparent'
-                          }}
-                        >
-                          <div className="day-name" style={{
-                            fontSize: '11px',
-                            color: isToday ? 'white' : 'var(--text-secondary, #64748b)',
-                            fontWeight: '500'
-                          }}>
-                            {getDayName(date)}
-                          </div>
-                          <div className="day-number" style={{
-                            fontSize: '16px',
-                            fontWeight: '600',
-                            color: isToday ? 'white' : 'var(--text-primary, #1a1a2e)'
-                          }}>
-                            {formatDateShort(date)}
-                          </div>
+                    {/* Day Header */}
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      marginBottom: '16px'
+                    }}>
+                      <button
+                        onClick={() => {
+                          const prev = new Date(selectedDate);
+                          prev.setDate(prev.getDate() - 1);
+                          setSelectedDate(prev.toISOString().split('T')[0]);
+                        }}
+                        style={{
+                          padding: '8px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid var(--border-color)',
+                          background: 'transparent',
+                          cursor: 'pointer',
+                          color: 'var(--text-primary)'
+                        }}
+                      >
+                        ← Prev
+                      </button>
+                      <div style={{ textAlign: 'center' }}>
+                        <div style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
+                          {getDayName(selectedDate)}
                         </div>
-                      );
-                    })}
+                        <div style={{ fontSize: '24px', fontWeight: '700', color: 'var(--text-primary)' }}>
+                          {formatDateShort(selectedDate)}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const next = new Date(selectedDate);
+                          next.setDate(next.getDate() + 1);
+                          setSelectedDate(next.toISOString().split('T')[0]);
+                        }}
+                        style={{
+                          padding: '8px 12px',
+                          borderRadius: '8px',
+                          border: '1px solid var(--border-color)',
+                          background: 'transparent',
+                          cursor: 'pointer',
+                          color: 'var(--text-primary)'
+                        }}
+                      >
+                        Next →
+                      </button>
+                    </div>
 
-                    {/* Hour Rows */}
-                    {hours.map(hour => (
-                      <React.Fragment key={hour}>
-                        <div className="time-label" style={{
-                          fontSize: '11px',
-                          color: 'var(--text-secondary, #64748b)',
-                          paddingRight: '8px',
-                          textAlign: 'right',
-                          paddingTop: '4px'
-                        }}>
-                          {formatHour(hour)}
-                        </div>
-                        {weekDates.map(date => {
-                          const cellBlocks = getBlocksForHour(blocks, date, hour);
-                          const isCurrentHour = date === today && hour === currentHour;
-                          
-                          return (
+                    {/* Hour Rows for Day View */}
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                      {hours.map(hour => {
+                        const dayBlocks = getBlocksForHour(blocks, selectedDate, hour);
+                        const isCurrentHour = selectedDate === today && hour === currentHour;
+                        
+                        return (
+                          <div
+                            key={hour}
+                            style={{
+                              display: 'grid',
+                              gridTemplateColumns: '60px 1fr',
+                              gap: '12px',
+                              alignItems: 'start'
+                            }}
+                          >
+                            <div style={{
+                              fontSize: '13px',
+                              fontWeight: isCurrentHour ? '700' : '500',
+                              color: isCurrentHour ? 'var(--accent-color)' : 'var(--text-secondary)',
+                              paddingTop: '8px',
+                              textAlign: 'right'
+                            }}>
+                              {formatHour(hour)}
+                            </div>
                             <DroppableCell
-                              key={`${date}-${hour}`}
-                              date={date}
+                              date={selectedDate}
                               hour={hour}
                               isCurrentHour={isCurrentHour}
+                              blocks={dayBlocks}
                               onClick={() => {
-                                setSelectedDate(date);
                                 setSelectedHour(hour);
                                 setShowModal(true);
                               }}
                             >
-                              {cellBlocks.map(block => (
+                              {dayBlocks.map(block => (
                                 <TimeBlock
                                   key={block.id}
                                   block={block}
@@ -681,16 +703,115 @@ function App() {
                                   onEdit={() => setEditingBlock(block)}
                                   onDelete={() => setConfirmDialog({ isOpen: true, block })}
                                   onStartTimer={() => setActiveBlockId(block.id)}
-                                  isCompact={true}
+                                  isCompact={false}
                                 />
                               ))}
                             </DroppableCell>
-                          );
-                        })}
-                      </React.Fragment>
-                    ))}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
-                </div>
+                ) : (
+                  /* Week View */
+                  <div className="week-grid-container" style={{
+                    background: 'var(--bg-secondary, white)',
+                    borderRadius: '16px',
+                    padding: '20px',
+                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                  }}>
+                    {/* Day Headers */}
+                    <div className="week-grid" style={{
+                      display: 'grid',
+                      gridTemplateColumns: '60px repeat(7, 1fr)',
+                      gap: '8px'
+                    }}>
+                      <div /> {/* Empty corner */}
+                      {weekDates.map((date, i) => {
+                        const isToday = date === today;
+                        return (
+                          <div
+                            key={date}
+                            className="day-header"
+                            onClick={() => {
+                              setSelectedDate(date);
+                              setViewMode('day');
+                            }}
+                            style={{
+                              textAlign: 'center',
+                              padding: '8px',
+                              borderRadius: '8px',
+                              background: isToday ? 'var(--accent-color, #FF6B6B)' : 'transparent',
+                              cursor: 'pointer',
+                              transition: 'background 0.2s'
+                            }}
+                          >
+                            <div className="day-name" style={{
+                              fontSize: '11px',
+                              color: isToday ? 'white' : 'var(--text-secondary, #64748b)',
+                              fontWeight: '500'
+                            }}>
+                              {getDayName(date)}
+                            </div>
+                            <div className="day-number" style={{
+                              fontSize: '16px',
+                              fontWeight: '600',
+                              color: isToday ? 'white' : 'var(--text-primary, #1a1a2e)'
+                            }}>
+                              {formatDateShort(date)}
+                            </div>
+                          </div>
+                        );
+                      })}
+
+                      {/* Hour Rows */}
+                      {hours.map(hour => (
+                        <React.Fragment key={hour}>
+                          <div className="time-label" style={{
+                            fontSize: '11px',
+                            color: 'var(--text-secondary, #64748b)',
+                            paddingRight: '8px',
+                            textAlign: 'right',
+                            paddingTop: '4px'
+                          }}>
+                            {formatHour(hour)}
+                          </div>
+                          {weekDates.map(date => {
+                            const cellBlocks = getBlocksForHour(blocks, date, hour);
+                            const isCurrentHour = date === today && hour === currentHour;
+                            
+                            return (
+                              <DroppableCell
+                                key={`${date}-${hour}`}
+                                date={date}
+                                hour={hour}
+                                isCurrentHour={isCurrentHour}
+                                blocks={cellBlocks}
+                                onClick={() => {
+                                  setSelectedDate(date);
+                                  setSelectedHour(hour);
+                                  setShowModal(true);
+                                }}
+                              >
+                                {cellBlocks.map(block => (
+                                  <TimeBlock
+                                    key={block.id}
+                                    block={block}
+                                    isActive={block.id === activeBlockId}
+                                    onEdit={() => setEditingBlock(block)}
+                                    onDelete={() => setConfirmDialog({ isOpen: true, block })}
+                                    onStartTimer={() => setActiveBlockId(block.id)}
+                                    isCompact={true}
+                                  />
+                                ))}
+                              </DroppableCell>
+                            );
+                          })}
+                        </React.Fragment>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
 
               {/* Right Column - Timer & Widgets */}
@@ -836,5 +957,6 @@ function App() {
 }
 
 export default App;
+
 
 
