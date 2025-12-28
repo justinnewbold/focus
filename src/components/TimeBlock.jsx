@@ -6,6 +6,7 @@ import { CATEGORY_COLORS } from '../constants';
 
 /**
  * Time block component for displaying scheduled tasks
+ * Uses CSS theme variables for consistent theming
  */
 const TimeBlock = memo(({
   block,
@@ -59,8 +60,8 @@ const TimeBlock = memo(({
           overflow: 'hidden',
           textOverflow: 'ellipsis',
           whiteSpace: 'nowrap',
-          border: isActive ? '2px solid #fff' : 'none',
-          boxShadow: isActive ? '0 0 12px rgba(255,255,255,0.3)' : 'none',
+          border: isActive ? '2px solid var(--text-primary)' : 'none',
+          boxShadow: isActive ? '0 0 12px var(--surface-hover)' : 'none',
           position: 'relative'
         }}
       >
@@ -111,7 +112,8 @@ const TimeBlock = memo(({
           right: '8px',
           cursor: 'grab',
           opacity: 0.4,
-          fontSize: '10px'
+          fontSize: '10px',
+          color: 'var(--text-muted)'
         }}
         aria-hidden="true"
       >
@@ -138,7 +140,7 @@ const TimeBlock = memo(({
               style={{
                 fontFamily: "'JetBrains Mono', monospace",
                 fontSize: '11px',
-                color: 'rgba(255,255,255,0.5)'
+                color: 'var(--text-muted)'
               }}
             >
               {formatMinuteTime(block.hour, startMinute)} -{' '}
@@ -162,8 +164,8 @@ const TimeBlock = memo(({
             {hasCustomTimer && (
               <span
                 style={{
-                  background: '#FFC75F30',
-                  color: '#FFC75F',
+                  background: 'var(--warning)' + '30',
+                  color: 'var(--warning)',
                   padding: '2px 8px',
                   borderRadius: '8px',
                   fontSize: '9px',
@@ -181,7 +183,7 @@ const TimeBlock = memo(({
             style={{
               fontWeight: '600',
               fontSize: '15px',
-              color: '#fff',
+              color: 'var(--text-primary)',
               marginBottom: '6px',
               margin: 0
             }}
@@ -206,7 +208,7 @@ const TimeBlock = memo(({
             </span>
             {block.pomodoro_count > 0 && (
               <span
-                style={{ fontSize: '11px', color: 'rgba(255,255,255,0.5)' }}
+                style={{ fontSize: '11px', color: 'var(--text-muted)' }}
                 aria-label={`${block.pomodoro_count} pomodoros completed`}
               >
                 🍅 {block.pomodoro_count}
@@ -229,9 +231,9 @@ const TimeBlock = memo(({
               style={{
                 padding: '6px 12px',
                 borderRadius: '8px',
-                border: '1px solid rgba(255,255,255,0.2)',
+                border: '1px solid var(--border-color)',
                 background: 'transparent',
-                color: 'rgba(255,255,255,0.7)',
+                color: 'var(--text-secondary)',
                 fontSize: '11px',
                 cursor: 'pointer'
               }}
@@ -266,9 +268,9 @@ const TimeBlock = memo(({
               style={{
                 padding: '6px 12px',
                 borderRadius: '8px',
-                border: '1px solid rgba(255,107,107,0.3)',
+                border: '1px solid var(--error)',
                 background: 'transparent',
-                color: '#FF6B6B',
+                color: 'var(--error)',
                 fontSize: '11px',
                 cursor: 'pointer'
               }}

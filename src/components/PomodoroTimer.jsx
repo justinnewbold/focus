@@ -9,6 +9,7 @@ import { POMODORO_DEFAULTS } from '../constants';
 
 /**
  * Pomodoro Timer component with focus/break modes
+ * Uses CSS theme variables for consistent theming
  * Uses forwardRef to expose toggleTimer and resetTimer methods
  */
 const PomodoroTimer = memo(forwardRef(({ onComplete, currentTask, preferences, onToggle, onReset }, ref) => {
@@ -183,19 +184,19 @@ const PomodoroTimer = memo(forwardRef(({ onComplete, currentTask, preferences, o
   const strokeDashoffset = circumference * (1 - progress);
 
   const modeButtons = [
-    { key: 'focus', label: '🍅 Focus', color: '#FF6B6B' },
-    { key: 'shortBreak', label: '☕ Short', color: '#4ECDC4' },
-    { key: 'longBreak', label: '🌴 Long', color: '#4ECDC4' }
+    { key: 'focus', label: '🍅 Focus', color: 'var(--accent-color)' },
+    { key: 'shortBreak', label: '☕ Short', color: 'var(--secondary-color)' },
+    { key: 'longBreak', label: '🌴 Long', color: 'var(--secondary-color)' }
   ];
 
   return (
     <div
       className="timer-container"
       style={{
-        background: 'rgba(255,255,255,0.03)',
+        background: 'var(--surface)',
         borderRadius: '24px',
         padding: '28px',
-        border: '1px solid rgba(255,255,255,0.05)'
+        border: '1px solid var(--border-color)'
       }}
       role="timer"
       aria-label={`Pomodoro timer: ${formatTime(timeLeft)} remaining`}
@@ -224,8 +225,8 @@ const PomodoroTimer = memo(forwardRef(({ onComplete, currentTask, preferences, o
               padding: '10px 16px',
               borderRadius: '12px',
               border: 'none',
-              background: mode === key ? `${color}20` : 'rgba(255,255,255,0.05)',
-              color: mode === key ? color : 'rgba(255,255,255,0.5)',
+              background: mode === key ? 'var(--surface-hover)' : 'var(--surface)',
+              color: mode === key ? color : 'var(--text-muted)',
               fontSize: '12px',
               fontWeight: '600',
               cursor: isRunning ? 'not-allowed' : 'pointer',
@@ -257,7 +258,7 @@ const PomodoroTimer = memo(forwardRef(({ onComplete, currentTask, preferences, o
             cx="100"
             cy="100"
             r="90"
-            stroke="rgba(255,255,255,0.1)"
+            stroke="var(--border-color)"
             strokeWidth="8"
             fill="none"
           />
@@ -265,7 +266,7 @@ const PomodoroTimer = memo(forwardRef(({ onComplete, currentTask, preferences, o
             cx="100"
             cy="100"
             r="90"
-            stroke={mode === 'focus' ? '#FF6B6B' : '#4ECDC4'}
+            stroke={mode === 'focus' ? 'var(--accent-color)' : 'var(--secondary-color)'}
             strokeWidth="8"
             fill="none"
             strokeLinecap="round"
@@ -290,7 +291,7 @@ const PomodoroTimer = memo(forwardRef(({ onComplete, currentTask, preferences, o
               fontFamily: "'JetBrains Mono', monospace",
               fontSize: '42px',
               fontWeight: '700',
-              color: isAlarming ? '#FF6B6B' : '#fff',
+              color: isAlarming ? 'var(--accent-color)' : 'var(--text-primary)',
               animation: isAlarming ? 'pulse 0.5s infinite' : 'none'
             }}
           >
@@ -300,7 +301,7 @@ const PomodoroTimer = memo(forwardRef(({ onComplete, currentTask, preferences, o
             <div
               style={{
                 fontSize: '12px',
-                color: 'rgba(255,255,255,0.5)',
+                color: 'var(--text-muted)',
                 marginTop: '4px',
                 textAlign: 'center',
                 maxWidth: '140px',
@@ -327,8 +328,8 @@ const PomodoroTimer = memo(forwardRef(({ onComplete, currentTask, preferences, o
                 padding: '14px 28px',
                 borderRadius: '14px',
                 border: 'none',
-                background: 'linear-gradient(135deg, #4ECDC4 0%, #45B7D1 100%)',
-                color: '#fff',
+                background: 'var(--secondary-gradient)',
+                color: 'var(--text-primary)',
                 fontSize: '16px',
                 fontWeight: '600',
                 cursor: 'pointer'
@@ -343,8 +344,8 @@ const PomodoroTimer = memo(forwardRef(({ onComplete, currentTask, preferences, o
                 padding: '14px 28px',
                 borderRadius: '14px',
                 border: 'none',
-                background: 'linear-gradient(135deg, #FF6B6B 0%, #FF8E8E 100%)',
-                color: '#fff',
+                background: 'var(--accent-gradient)',
+                color: 'var(--text-primary)',
                 fontSize: '16px',
                 fontWeight: '600',
                 cursor: 'pointer',
@@ -365,9 +366,9 @@ const PomodoroTimer = memo(forwardRef(({ onComplete, currentTask, preferences, o
                 borderRadius: '14px',
                 border: 'none',
                 background: isRunning
-                  ? 'rgba(255,255,255,0.1)'
-                  : 'linear-gradient(135deg, #FF6B6B 0%, #FF8E8E 100%)',
-                color: '#fff',
+                  ? 'var(--surface-hover)'
+                  : 'var(--accent-gradient)',
+                color: 'var(--text-primary)',
                 fontSize: '16px',
                 fontWeight: '600',
                 cursor: 'pointer',
@@ -382,9 +383,9 @@ const PomodoroTimer = memo(forwardRef(({ onComplete, currentTask, preferences, o
               style={{
                 padding: '14px 28px',
                 borderRadius: '14px',
-                border: '1px solid rgba(255,255,255,0.2)',
+                border: '1px solid var(--border-color)',
                 background: 'transparent',
-                color: 'rgba(255,255,255,0.7)',
+                color: 'var(--text-secondary)',
                 fontSize: '16px',
                 fontWeight: '500',
                 cursor: 'pointer'
@@ -402,10 +403,10 @@ const PomodoroTimer = memo(forwardRef(({ onComplete, currentTask, preferences, o
           marginTop: '16px',
           textAlign: 'center',
           fontSize: '11px',
-          color: 'rgba(255,255,255,0.3)'
+          color: 'var(--text-muted)'
         }}
       >
-        Press <kbd style={{ padding: '2px 6px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px' }}>Space</kbd> to {isRunning ? 'pause' : 'start'} • <kbd style={{ padding: '2px 6px', background: 'rgba(255,255,255,0.1)', borderRadius: '4px' }}>R</kbd> to reset
+        Press <kbd style={{ padding: '2px 6px', background: 'var(--surface-hover)', borderRadius: '4px' }}>Space</kbd> to {isRunning ? 'pause' : 'start'} • <kbd style={{ padding: '2px 6px', background: 'var(--surface-hover)', borderRadius: '4px' }}>R</kbd> to reset
       </div>
     </div>
   );

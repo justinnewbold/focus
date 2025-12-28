@@ -5,6 +5,7 @@ import { generateProductivityInsights, getFallbackInsights } from '../services/a
 /**
  * AI Productivity Assistant Component
  * Provides personalized insights and suggestions powered by Gemini
+ * Uses CSS theme variables for consistent theming
  */
 export default function AIAssistant({ blocks, stats, preferences }) {
   const [insights, setInsights] = useState(null);
@@ -52,9 +53,9 @@ export default function AIAssistant({ blocks, stats, preferences }) {
   };
 
   const getFocusScoreColor = (score) => {
-    if (score >= 80) return '#10b981';
-    if (score >= 60) return '#f59e0b';
-    return '#ef4444';
+    if (score >= 80) return 'var(--success)';
+    if (score >= 60) return 'var(--warning)';
+    return 'var(--error)';
   };
 
   if (!isExpanded) {
@@ -68,12 +69,12 @@ export default function AIAssistant({ blocks, stats, preferences }) {
           width: '60px',
           height: '60px',
           borderRadius: '50%',
-          background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+          background: 'var(--accent-gradient)',
           border: 'none',
-          color: 'white',
+          color: 'var(--text-primary)',
           fontSize: '24px',
           cursor: 'pointer',
-          boxShadow: '0 4px 15px rgba(102, 126, 234, 0.4)',
+          boxShadow: '0 4px 15px var(--surface-hover)',
           zIndex: 1000,
           display: 'flex',
           alignItems: 'center',
@@ -91,11 +92,11 @@ export default function AIAssistant({ blocks, stats, preferences }) {
 
   return (
     <div style={{
-      background: 'linear-gradient(135deg, rgba(102, 126, 234, 0.1) 0%, rgba(118, 75, 162, 0.1) 100%)',
+      background: 'var(--surface)',
       borderRadius: '16px',
       padding: '20px',
       marginBottom: '20px',
-      border: '1px solid rgba(102, 126, 234, 0.2)'
+      border: '1px solid var(--border-color)'
     }}>
       {/* Header */}
       <div style={{
@@ -106,7 +107,7 @@ export default function AIAssistant({ blocks, stats, preferences }) {
       }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '24px' }}>🤖</span>
-          <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600' }}>AI Assistant</h3>
+          <h3 style={{ margin: 0, fontSize: '16px', fontWeight: '600', color: 'var(--text-primary)' }}>AI Assistant</h3>
         </div>
         <div style={{ display: 'flex', gap: '8px' }}>
           <button
@@ -143,7 +144,7 @@ export default function AIAssistant({ blocks, stats, preferences }) {
         <div style={{
           textAlign: 'center',
           padding: '20px',
-          color: '#6b7280'
+          color: 'var(--text-muted)'
         }}>
           <div style={{ fontSize: '32px', marginBottom: '8px' }}>✨</div>
           <p>Analyzing your productivity...</p>
@@ -157,14 +158,14 @@ export default function AIAssistant({ blocks, stats, preferences }) {
             gap: '16px',
             marginBottom: '16px',
             padding: '12px',
-            background: 'rgba(255,255,255,0.5)',
+            background: 'var(--surface-hover)',
             borderRadius: '12px'
           }}>
             <div style={{
               width: '60px',
               height: '60px',
               borderRadius: '50%',
-              background: `conic-gradient(${getFocusScoreColor(insights.focusScore)} ${insights.focusScore * 3.6}deg, #e5e7eb 0deg)`,
+              background: `conic-gradient(${getFocusScoreColor(insights.focusScore)} ${insights.focusScore * 3.6}deg, var(--border-color) 0deg)`,
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
@@ -174,7 +175,7 @@ export default function AIAssistant({ blocks, stats, preferences }) {
                 width: '48px',
                 height: '48px',
                 borderRadius: '50%',
-                background: 'white',
+                background: 'var(--bg-secondary)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
@@ -186,8 +187,8 @@ export default function AIAssistant({ blocks, stats, preferences }) {
               </div>
             </div>
             <div>
-              <div style={{ fontWeight: '600', marginBottom: '4px' }}>Focus Score</div>
-              <div style={{ fontSize: '14px', color: '#6b7280' }}>
+              <div style={{ fontWeight: '600', marginBottom: '4px', color: 'var(--text-primary)' }}>Focus Score</div>
+              <div style={{ fontSize: '14px', color: 'var(--text-muted)' }}>
                 {insights.focusScore >= 80 ? 'Excellent!' : 
                  insights.focusScore >= 60 ? 'Good progress' : 'Room to grow'}
               </div>
@@ -199,39 +200,39 @@ export default function AIAssistant({ blocks, stats, preferences }) {
             fontSize: '18px',
             fontWeight: '500',
             marginBottom: '12px',
-            color: '#374151'
+            color: 'var(--text-primary)'
           }}>
             {insights.greeting}
           </div>
 
           {/* Today's Insight */}
           <div style={{
-            background: 'rgba(102, 126, 234, 0.1)',
+            background: 'var(--surface-hover)',
             padding: '12px',
             borderRadius: '8px',
             marginBottom: '12px',
-            borderLeft: '3px solid #667eea'
+            borderLeft: '3px solid var(--accent-color)'
           }}>
-            <div style={{ fontSize: '12px', color: '#667eea', marginBottom: '4px', fontWeight: '500' }}>
+            <div style={{ fontSize: '12px', color: 'var(--accent-color)', marginBottom: '4px', fontWeight: '500' }}>
               TODAY'S INSIGHT
             </div>
-            <div style={{ fontSize: '14px', color: '#374151' }}>
+            <div style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
               {insights.todayInsight}
             </div>
           </div>
 
           {/* Suggestion */}
           <div style={{
-            background: 'rgba(245, 158, 11, 0.1)',
+            background: 'var(--surface-hover)',
             padding: '12px',
             borderRadius: '8px',
             marginBottom: '12px',
-            borderLeft: '3px solid #f59e0b'
+            borderLeft: '3px solid var(--warning)'
           }}>
-            <div style={{ fontSize: '12px', color: '#d97706', marginBottom: '4px', fontWeight: '500' }}>
+            <div style={{ fontSize: '12px', color: 'var(--warning)', marginBottom: '4px', fontWeight: '500' }}>
               💡 SUGGESTION
             </div>
-            <div style={{ fontSize: '14px', color: '#374151' }}>
+            <div style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
               {insights.suggestion}
             </div>
           </div>
@@ -240,10 +241,10 @@ export default function AIAssistant({ blocks, stats, preferences }) {
           <div style={{
             textAlign: 'center',
             padding: '12px',
-            background: 'linear-gradient(135deg, rgba(16, 185, 129, 0.1) 0%, rgba(6, 182, 212, 0.1) 100%)',
+            background: 'var(--surface-hover)',
             borderRadius: '8px',
             fontSize: '14px',
-            color: '#059669'
+            color: 'var(--success)'
           }}>
             {insights.encouragement}
           </div>
@@ -253,7 +254,7 @@ export default function AIAssistant({ blocks, stats, preferences }) {
             <div style={{
               marginTop: '12px',
               fontSize: '11px',
-              color: '#9ca3af',
+              color: 'var(--text-muted)',
               textAlign: 'right'
             }}>
               Updated {lastRefresh.toLocaleTimeString()}
@@ -261,7 +262,7 @@ export default function AIAssistant({ blocks, stats, preferences }) {
           )}
         </>
       ) : (
-        <div style={{ textAlign: 'center', color: '#6b7280', padding: '20px' }}>
+        <div style={{ textAlign: 'center', color: 'var(--text-muted)', padding: '20px' }}>
           <p>Unable to load insights. Click refresh to try again.</p>
         </div>
       )}
