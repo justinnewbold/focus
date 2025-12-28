@@ -79,7 +79,21 @@ const FocusMode = memo(({
     };
   }, [mode, isRunning]);
 
-  // Handle escape key
+  const toggleTimer = useCallback(() => {
+    if (isAlarming) return;
+
+    if (isRunning) {
+      setIsRunning(false);
+      setEndTime(null);
+    } else {
+      const newEndTime = Date.now() + timeLeft * 1000;
+      setEndTime(newEndTime);
+      setIsRunning(true);
+      playSound('start');
+    }
+  }, [isAlarming, isRunning, timeLeft, playSound]);
+
+  // Handle escape key and space bar
   useEffect(() => {
     if (!isOpen) return;
 
@@ -94,21 +108,7 @@ const FocusMode = memo(({
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, isRunning, onClose]);
-
-  const toggleTimer = useCallback(() => {
-    if (isAlarming) return;
-
-    if (isRunning) {
-      setIsRunning(false);
-      setEndTime(null);
-    } else {
-      const newEndTime = Date.now() + timeLeft * 1000;
-      setEndTime(newEndTime);
-      setIsRunning(true);
-      playSound('start');
-    }
-  }, [isAlarming, isRunning, timeLeft, playSound]);
+  }, [isOpen, isRunning, onClose, toggleTimer]);
 
   const acknowledgeAlarm = useCallback(() => {
     stopAlarm();

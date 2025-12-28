@@ -32,7 +32,7 @@ class FocusSoundsService {
   // Set volume (0-1)
   setVolume(value) {
     this.volume = Math.max(0, Math.min(1, value));
-    if (this.gainNode) {
+    if (this.gainNode && this.audioContext) {
       this.gainNode.gain.setValueAtTime(this.volume, this.audioContext.currentTime);
     }
   }
@@ -390,11 +390,11 @@ class FocusSoundsService {
 
   // Fade out
   fadeOut(duration = 2) {
-    if (!this.gainNode || !this.isPlaying) return;
-    
+    if (!this.gainNode || !this.audioContext || !this.isPlaying) return;
+
     this.gainNode.gain.setValueAtTime(this.volume, this.audioContext.currentTime);
     this.gainNode.gain.linearRampToValueAtTime(0, this.audioContext.currentTime + duration);
-    
+
     setTimeout(() => this.stop(), duration * 1000);
   }
 
@@ -403,9 +403,11 @@ class FocusSoundsService {
     const originalVolume = this.volume;
     this.setVolume(0);
     this.play(soundId);
-    
-    this.gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
-    this.gainNode.gain.linearRampToValueAtTime(originalVolume, this.audioContext.currentTime + duration);
+
+    if (this.gainNode && this.audioContext) {
+      this.gainNode.gain.setValueAtTime(0, this.audioContext.currentTime);
+      this.gainNode.gain.linearRampToValueAtTime(originalVolume, this.audioContext.currentTime + duration);
+    }
   }
 }
 

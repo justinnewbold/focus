@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 
 /**
  * Custom hook to handle mobile virtual keyboard visibility
@@ -15,12 +15,23 @@ export const useMobileKeyboard = ({ onKeyboardShow, onKeyboardHide } = {}) => {
     typeof window !== 'undefined' ? window.visualViewport?.height || window.innerHeight : 0
   );
 
+  // Use refs for callbacks to avoid dependency issues
+  const onKeyboardShowRef = useRef(onKeyboardShow);
+  const onKeyboardHideRef = useRef(onKeyboardHide);
+
+  useEffect(() => {
+    onKeyboardShowRef.current = onKeyboardShow;
+    onKeyboardHideRef.current = onKeyboardHide;
+  }, [onKeyboardShow, onKeyboardHide]);
+
   // Detect keyboard visibility using visualViewport API
   useEffect(() => {
     if (typeof window === 'undefined') return;
 
     const viewport = window.visualViewport;
     if (!viewport) return;
+
+    let lastKeyboardVisible = false;
 
     const handleResize = () => {
       const currentHeight = viewport.height;
@@ -29,46 +40,50 @@ export const useMobileKeyboard = ({ onKeyboardShow, onKeyboardHide } = {}) => {
       // Keyboard is considered visible if viewport shrunk by more than 150px
       const keyboardVisible = heightDiff > 150;
 
-      if (keyboardVisible !== isKeyboardVisible) {
+      if (keyboardVisible !== lastKeyboardVisible) {
+        lastKeyboardVisible = keyboardVisible;
         setIsKeyboardVisible(keyboardVisible);
         setKeyboardHeight(keyboardVisible ? heightDiff : 0);
 
         if (keyboardVisible) {
-          onKeyboardShow?.(heightDiff);
+          onKeyboardShowRef.current?.(heightDiff);
         } else {
-          onKeyboardHide?.();
+          onKeyboardHideRef.current?.();
         }
       }
     };
 
     viewport.addEventListener('resize', handleResize);
     return () => viewport.removeEventListener('resize', handleResize);
-  }, [initialViewportHeight, isKeyboardVisible, onKeyboardShow, onKeyboardHide]);
+  }, [initialViewportHeight]);
 
   // Fallback for browsers without visualViewport
   useEffect(() => {
     if (typeof window === 'undefined' || window.visualViewport) return;
+
+    let lastKeyboardVisible = false;
 
     const handleResize = () => {
       const currentHeight = window.innerHeight;
       const heightDiff = initialViewportHeight - currentHeight;
       const keyboardVisible = heightDiff > 150;
 
-      if (keyboardVisible !== isKeyboardVisible) {
+      if (keyboardVisible !== lastKeyboardVisible) {
+        lastKeyboardVisible = keyboardVisible;
         setIsKeyboardVisible(keyboardVisible);
         setKeyboardHeight(keyboardVisible ? heightDiff : 0);
 
         if (keyboardVisible) {
-          onKeyboardShow?.(heightDiff);
+          onKeyboardShowRef.current?.(heightDiff);
         } else {
-          onKeyboardHide?.();
+          onKeyboardHideRef.current?.();
         }
       }
     };
 
     window.addEventListener('resize', handleResize);
     return () => window.removeEventListener('resize', handleResize);
-  }, [initialViewportHeight, isKeyboardVisible, onKeyboardShow, onKeyboardHide]);
+  }, [initialViewportHeight]);
 
   /**
    * Scroll an input element into view when focused
