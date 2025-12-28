@@ -192,29 +192,30 @@ function App() {
       }
     );
     return unsubscribe;
-  }, [toast]);
+  }, []);  // No deps - stable callbacks
 
   // Load user data with retry and offline cache support
+  // Ref to prevent simultaneous data loading
+  const isLoadingRef = useRef(false);
+  
   const loadData = useCallback(async () => {
     if (!user) return;
-
+    
+    // Prevent simultaneous loads
+    if (isLoadingRef.current) {
+      console.log('Load already in progress, skipping...');
+      return;
+    }
+    
+    isLoadingRef.current = true;
     setIsSyncing(true);
+    
     try {
-      const fetchData = async () => {
-        const [blocksData, statsData, prefsData] = await Promise.all([
-          db.getTimeBlocks(user.id),
-          db.getPomodoroStats(user.id),
-          db.getPreferences(user.id)
-        ]);
-        return { blocksData, statsData, prefsData };
-      };
-
-      const { blocksData, statsData, prefsData } = await withRetry(fetchData, {
-        maxRetries: 3,
-        onRetry: (info) => {
-          toast.info(`Retrying... (${info.attempt}/${info.maxRetries})`);
-        }
-      });
+      const [blocksData, statsData, prefsData] = await Promise.all([
+        db.getTimeBlocks(user.id),
+        db.getPomodoroStats(user.id),
+        db.getPreferences(user.id)
+      ]);
 
       setBlocks(blocksData || []);
       setStats(statsData || []);
@@ -225,23 +226,22 @@ function App() {
       }
     } catch (error) {
       console.error('Error loading data:', error);
+      // Only show error once, don't retry automatically
       const cached = getCachedBlocks();
       if (cached?.blocks) {
         setBlocks(cached.blocks);
-        toast.warning('Showing cached data. Some info may be outdated.');
-      } else {
-        toast.error('Failed to load data. Please check your connection.');
       }
     } finally {
       setIsSyncing(false);
+      isLoadingRef.current = false;
     }
-  }, [user, toast]);
+  }, [user]);
 
   useEffect(() => {
     if (user) {
       loadData();
     }
-  }, [user, loadData]);
+  }, [user]);
 
   // Set up real-time subscriptions
   useEffect(() => {
@@ -263,12 +263,12 @@ function App() {
     };
 
     realtimeSync.subscribeToBlocks(user.id, handleInsert, handleUpdate, handleDelete);
-    realtimeSync.subscribeToStats(user.id, () => loadData());
+    realtimeSync.subscribeToStats(user.id, () => {} /* stats update handled by subscription */);
 
     return () => {
       realtimeSync.unsubscribeAll();
     };
-  }, [user, loadData]);
+  }, [user]);
 
   // CRUD Operations
   const handleAddBlock = useCallback(async (blockData) => {
@@ -836,4 +836,5 @@ function App() {
 }
 
 export default App;
+
 
