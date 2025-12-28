@@ -22,11 +22,12 @@ import {
   TimerSettingsModal,
   AIAssistant,
   EnhancedAnalytics,
-  CalendarSync
+  CalendarSync,
+  UndoToast
 } from './components';
 
 // Hooks
-import { DragProvider, useKeyboardShortcuts, useToast } from './hooks';
+import { DragProvider, useKeyboardShortcuts, useToast, useUndoStack } from './hooks';
 
 // Utils
 import {
@@ -130,6 +131,10 @@ function App() {
 
   // Toast notifications
   const toast = useToast();
+
+  // Undo stack for reversible operations
+  const undoStack = useUndoStack({ maxHistory: 20 });
+  const [undoToast, setUndoToast] = useState({ visible: false, message: '', block: null });
 
   // Initialize theme on mount
   useEffect(() => {
@@ -315,6 +320,10 @@ function App() {
   const handleDeleteBlock = useCallback(async (blockId) => {
     if (!user) return;
 
+    // Store the block before deleting for undo
+    const blockToDelete = blocks.find(b => b.id === blockId);
+    if (!blockToDelete) return;
+
     setIsSyncing(true);
     try {
       const { error } = await db.deleteTimeBlock(blockId);
@@ -324,16 +333,67 @@ function App() {
         return;
       }
 
+      // Remove from state
       setBlocks(prev => prev.filter(b => b.id !== blockId));
-      toast.success('Block deleted!');
       setConfirmDialog({ isOpen: false, block: null });
+
+      // Show undo toast instead of success toast
+      setUndoToast({
+        visible: true,
+        message: `"${blockToDelete.title}" deleted`,
+        block: blockToDelete
+      });
+
+      // Store in deleted blocks for recovery
+      deletedBlocksStorage.save(blockToDelete);
+
     } catch (error) {
       console.error('Error deleting block:', error);
       toast.error('Failed to delete block');
     } finally {
       setIsSyncing(false);
     }
-  }, [user, toast]);
+  }, [user, toast, blocks]);
+
+  // Handle undo delete
+  const handleUndoDelete = useCallback(async () => {
+    if (!user || !undoToast.block) return;
+
+    setIsSyncing(true);
+    try {
+      const blockToRestore = undoToast.block;
+
+      // Re-create the block in the database
+      const { data: restoredBlock, error } = await db.createTimeBlock(user.id, {
+        title: blockToRestore.title,
+        category: blockToRestore.category,
+        date: blockToRestore.date,
+        hour: blockToRestore.hour,
+        start_minute: blockToRestore.start_minute,
+        duration_minutes: blockToRestore.duration_minutes,
+        timer_duration: blockToRestore.timer_duration
+      });
+
+      if (error) {
+        toast.error('Failed to restore block');
+        return;
+      }
+
+      // Add back to state
+      setBlocks(prev => [...prev, restoredBlock]);
+      toast.success('Block restored!');
+
+      // Remove from deleted blocks storage
+      deletedBlocksStorage.remove(blockToRestore.id);
+
+    } catch (error) {
+      console.error('Error restoring block:', error);
+      toast.error('Failed to restore block');
+    } finally {
+      setIsSyncing(false);
+      setUndoToast({ visible: false, message: '', block: null });
+    }
+  }, [user, undoToast.block, toast]);
 
   // Handle importing blocks from Google Calendar
   const handleImportBlocks = useCallback(async (importedBlocks) => {
@@ -356,11 +416,13 @@ function App() {
 
   // Keyboard shortcuts
   useKeyboardShortcuts({
-    'n': () => setShowModal(true),
-    'q': () => setShowQuickAdd(true),
-    'f': () => setShowFocusMode(true),
-    'a': () => setShowEnhancedAnalytics(true),
-    'Escape': () => {
+    newBlock: () => setShowModal(true),
+    quickAdd: () => setShowQuickAdd(true),
+    focusMode: () => setShowFocusMode(true),
+    analytics: () => setShowEnhancedAnalytics(true),
+    toggleTimer: () => timerRef.current?.toggleTimer(),
+    resetTimer: () => timerRef.current?.resetTimer(),
+    closeModal: () => {
       setShowModal(false);
       setEditingBlock(null);
       setShowFocusMode(false);
@@ -665,11 +727,11 @@ function App() {
           {/* Modals */}
           {showModal && (
             <AddBlockModal
-              isOpen={showModal}
+              hour={selectedHour}
+              date={selectedDate}
+              onAdd={handleAddBlock}
               onClose={() => setShowModal(false)}
-              onSave={handleAddBlock}
-              initialDate={selectedDate}
-              initialHour={selectedHour}
+              existingBlocks={blocks}
             />
           )}
 
@@ -730,6 +792,15 @@ function App() {
 
           {/* Toast Notifications */}
           <ToastContainer toasts={toast.toasts} onDismiss={toast.dismiss} />
+
+          {/* Undo Toast */}
+          <UndoToast
+            isVisible={undoToast.visible}
+            message={undoToast.message}
+            onUndo={handleUndoDelete}
+            onDismiss={() => setUndoToast({ visible: false, message: '', block: null })}
+            timeout={5000}
+          />
         </div>
       </DragProvider>
     </ErrorBoundary>

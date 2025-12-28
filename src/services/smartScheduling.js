@@ -13,7 +13,7 @@ class SmartSchedulingService {
     const patterns = {
       hourlyProductivity: {},
       dayOfWeekProductivity: {},
-      avgSessionLength: 0,
+      avgSessionLength: 25, // Default 25 minutes
       peakHours: [],
       bestDays: []
     };
@@ -24,7 +24,8 @@ class SmartSchedulingService {
     blocks.forEach(block => {
       if (!block.completed || !block.start_time) return;
       const hour = parseInt(block.start_time.split(':')[0]);
-      const duration = block.timer_duration || 1500;
+      // duration_minutes is the block duration, timer_duration is pomodoro timer (both in minutes)
+      const duration = block.duration_minutes || block.timer_duration || 25;
 
       if (!patterns.hourlyProductivity[hour]) {
         patterns.hourlyProductivity[hour] = { total: 0, count: 0 };
@@ -54,11 +55,11 @@ class SmartSchedulingService {
       .sort((a, b) => b.avg - a.avg);
     patterns.bestDays = daylyAvg.slice(0, 2).map(d => d.day);
 
-    // Average session
+    // Average session (in minutes)
     const completedBlocks = blocks.filter(b => b.completed);
     patterns.avgSessionLength = completedBlocks.length > 0
-      ? completedBlocks.reduce((sum, b) => sum + (b.timer_duration || 1500), 0) / completedBlocks.length
-      : 1500;
+      ? completedBlocks.reduce((sum, b) => sum + (b.duration_minutes || b.timer_duration || 25), 0) / completedBlocks.length
+      : 25;
 
     return patterns;
   }
@@ -79,7 +80,9 @@ class SmartSchedulingService {
       if (!block.start_time) return;
       const [hours, mins] = block.start_time.split(':').map(Number);
       const blockStart = hours + mins / 60;
-      const duration = (block.timer_duration || 1500) / 3600;
+      // duration_minutes/timer_duration are in minutes, convert to hours for calculation
+      const durationMinutes = block.duration_minutes || block.timer_duration || 25;
+      const duration = durationMinutes / 60;
       const blockEnd = blockStart + duration;
 
       if (blockStart > lastEnd) {
@@ -119,7 +122,7 @@ Duration needed: ${taskInfo.duration || 25} minutes
 User's productivity patterns:
 - Peak hours: ${patterns.peakHours.join(', ')} (24h format)
 - Best days: ${patterns.bestDays.join(', ')}
-- Average session: ${Math.round(patterns.avgSessionLength / 60)} minutes
+- Average session: ${Math.round(patterns.avgSessionLength)} minutes
 
 Available time slots today:
 ${freeSlots.map(s => `- ${Math.floor(s.start)}:${String(Math.round((s.start % 1) * 60)).padStart(2, '0')} to ${Math.floor(s.end)}:${String(Math.round((s.end % 1) * 60)).padStart(2, '0')} (${Math.round(s.duration)} mins available)`).join('\n')}

@@ -162,8 +162,8 @@ describe('sanitizeTitle', () => {
     expect(sanitizeTitle('<script>alert("xss")</script>Test')).toBe('alert("xss")Test');
   });
 
-  it('removes angle brackets', () => {
-    expect(sanitizeTitle('Test <value>')).toBe('Test value');
+  it('removes angle brackets and their content (HTML-like tags)', () => {
+    expect(sanitizeTitle('Test <value>')).toBe('Test ');
   });
 
   it('limits length to 100 characters', () => {

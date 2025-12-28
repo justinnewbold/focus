@@ -60,6 +60,24 @@ export const useKeyboardShortcuts = (handlers, enabled = true) => {
       event.preventDefault();
       handlers.focusMode();
     }
+
+    // F - focus mode (without modifiers)
+    if (key === 'f' && !event.ctrlKey && !event.metaKey && !event.shiftKey && handlers.focusMode) {
+      event.preventDefault();
+      handlers.focusMode();
+    }
+
+    // A - analytics
+    if (key === 'a' && handlers.analytics) {
+      event.preventDefault();
+      handlers.analytics();
+    }
+
+    // Q - quick add (without modifiers)
+    if (key === 'q' && !event.ctrlKey && !event.metaKey && handlers.quickAdd) {
+      event.preventDefault();
+      handlers.quickAdd();
+    }
   }, [handlers]);
 
   useEffect(() => {
