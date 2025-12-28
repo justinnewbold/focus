@@ -1,57 +1,111 @@
 {
-  "name": "FOCUS - Time Blocking & Pomodoro",
+  "name": "FOCUS - Productivity Timer",
   "short_name": "FOCUS",
-  "description": "Master your day with focused time blocking and Pomodoro timer. Real-time sync across all devices.",
+  "description": "Time blocking app with Pomodoro timer, AI insights, and focus sounds",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0f0f1a",
-  "theme_color": "#FF6B6B",
-  "orientation": "portrait-primary",
-  "scope": "/",
-  "lang": "en-US",
-  "categories": ["productivity", "utilities"],
+  "theme_color": "#4F46E5",
+  "orientation": "any",
   "icons": [
-    { "src": "/icons/icon-72.png", "sizes": "72x72", "type": "image/png" },
-    { "src": "/icons/icon-96.png", "sizes": "96x96", "type": "image/png" },
-    { "src": "/icons/icon-128.png", "sizes": "128x128", "type": "image/png" },
-    { "src": "/icons/icon-144.png", "sizes": "144x144", "type": "image/png" },
-    { "src": "/icons/icon-152.png", "sizes": "152x152", "type": "image/png" },
-    { "src": "/icons/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any maskable" },
-    { "src": "/icons/icon-384.png", "sizes": "384x384", "type": "image/png" },
-    { "src": "/icons/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any maskable" }
+    {
+      "src": "/focus-icon-72.png",
+      "sizes": "72x72",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/focus-icon-96.png",
+      "sizes": "96x96",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/focus-icon-128.png",
+      "sizes": "128x128",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/focus-icon-144.png",
+      "sizes": "144x144",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/focus-icon-152.png",
+      "sizes": "152x152",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/focus-icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/focus-icon-384.png",
+      "sizes": "384x384",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/focus-icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
   ],
+  "categories": ["productivity", "utilities"],
   "shortcuts": [
     {
-      "name": "Start Focus Session",
-      "short_name": "Focus",
-      "description": "Start a 25-minute focus session",
-      "url": "/?action=start-focus",
-      "icons": [{ "src": "/icons/shortcut-focus.png", "sizes": "96x96" }]
+      "name": "Quick Timer",
+      "short_name": "Timer",
+      "description": "Start a quick 25-minute focus session",
+      "url": "/?quick=25",
+      "icons": [{ "src": "/timer-icon.png", "sizes": "96x96" }]
     },
     {
-      "name": "Quick Break",
-      "short_name": "Break",
-      "description": "Start a 5-minute break",
-      "url": "/?action=start-break",
-      "icons": [{ "src": "/icons/shortcut-break.png", "sizes": "96x96" }]
+      "name": "Add Block",
+      "short_name": "Add",
+      "description": "Add a new focus block",
+      "url": "/?action=add",
+      "icons": [{ "src": "/add-icon.png", "sizes": "96x96" }]
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot-wide.png",
+      "sizes": "1280x720",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "FOCUS Desktop View"
     },
     {
-      "name": "View Schedule",
-      "short_name": "Schedule",
-      "description": "View today's time blocks",
-      "url": "/?view=day",
-      "icons": [{ "src": "/icons/shortcut-schedule.png", "sizes": "96x96" }]
-    },
+      "src": "/screenshot-mobile.png",
+      "sizes": "750x1334",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "FOCUS Mobile View"
+    }
+  ],
+  "share_target": {
+    "action": "/share",
+    "method": "POST",
+    "enctype": "multipart/form-data",
+    "params": {
+      "title": "title",
+      "text": "text",
+      "url": "url"
+    }
+  },
+  "protocol_handlers": [
     {
-      "name": "Analytics",
-      "short_name": "Stats",
-      "description": "View productivity analytics",
-      "url": "/?view=analytics",
-      "icons": [{ "src": "/icons/shortcut-analytics.png", "sizes": "96x96" }]
+      "protocol": "web+focus",
+      "url": "/handle?type=%s"
     }
   ],
   "related_applications": [],
-  "prefer_related_applications": false,
-  "launch_handler": { "client_mode": "navigate-existing" },
-  "protocol_handlers": [{ "protocol": "web+focus", "url": "/?action=%s" }]
+  "prefer_related_applications": false
 }

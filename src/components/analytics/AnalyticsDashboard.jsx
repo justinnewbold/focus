@@ -69,6 +69,11 @@ const AnalyticsDashboard = ({ blocks = [] }) => {
             <div key={i} title={`${d.date}: ${Math.round(d.mins)}m`} style={{ width: '20px', height: '20px', borderRadius: '4px', background: ['#1a1a2e', '#2d4a3e', '#3d6b4f', '#4d8c60', '#10B981'][d.level] }} />
           ))}
         </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '4px', marginTop: '8px', fontSize: '12px', color: '#888' }}>
+          <span>Less</span>
+          {[0,1,2,3,4].map(l => <div key={l} style={{ width: '12px', height: '12px', borderRadius: '2px', background: ['#1a1a2e', '#2d4a3e', '#3d6b4f', '#4d8c60', '#10B981'][l] }} />)}
+          <span>More</span>
+        </div>
       </div>
 
       <div>
