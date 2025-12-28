@@ -653,7 +653,8 @@ function App() {
                                   isActive={block.id === activeBlockId}
                                   onEdit={() => setEditingBlock(block)}
                                   onDelete={() => setConfirmDialog({ isOpen: true, block })}
-                                  onStart={() => setActiveBlockId(block.id)}
+                                  onStartTimer={() => setActiveBlockId(block.id)}
+                                  isCompact={true}
                                 />
                               ))}
                             </DroppableCell>
@@ -750,7 +751,7 @@ function App() {
               onClose={() => setShowTimerSettings(false)}
               preferences={preferences}
               onSave={(newPrefs) => {
-                db.updatePreferences(user.id, newPrefs);
+                db.upsertPreferences(user.id, newPrefs);
                 setPreferences(newPrefs);
               }}
             />

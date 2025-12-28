@@ -156,6 +156,7 @@ export const realtimeSync = {
 };
 
 // Database helpers with improved error handling
+// FIXED: Function signatures now match how they're called from App.jsx
 export const db = {
   async getTimeBlocks(userId) {
     if (!userId) return [];
@@ -191,14 +192,18 @@ export const db = {
     }
   },
 
-  async updateTimeBlock(userId, id, updates) {
-    if (!userId) throw new Error('Not authenticated');
+  // FIXED: Changed signature from (userId, id, updates) to (id, updates)
+  // userId is retrieved from the current session
+  async updateTimeBlock(id, updates) {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+      
       const { data, error } = await supabase
         .from('time_blocks')
         .update({ ...updates, updated_at: new Date().toISOString() })
         .eq('id', id)
-        .eq('user_id', userId)
+        .eq('user_id', user.id)
         .select()
         .single();
 
@@ -210,14 +215,18 @@ export const db = {
     }
   },
 
-  async deleteTimeBlock(userId, id) {
-    if (!userId) throw new Error('Not authenticated');
+  // FIXED: Changed signature from (userId, id) to (id)
+  // userId is retrieved from the current session
+  async deleteTimeBlock(id) {
     try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('Not authenticated');
+      
       const { error } = await supabase
         .from('time_blocks')
         .delete()
         .eq('id', id)
-        .eq('user_id', userId);
+        .eq('user_id', user.id);
 
       if (error) throw error;
       return { error: null };
@@ -287,6 +296,17 @@ export const db = {
       return { error: null };
     } catch (error) {
       console.error('Error updating pomodoro stats:', error);
+      return { error };
+    }
+  },
+
+  // Added method that was being called but missing
+  async savePomodoroStat(userId, session) {
+    if (!userId) return { error: new Error('Not authenticated') };
+    try {
+      return await this.updatePomodoroStats(userId, 1, session?.category || 'work');
+    } catch (error) {
+      console.error('Error saving pomodoro stat:', error);
       return { error };
     }
   },
