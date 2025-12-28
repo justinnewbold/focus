@@ -136,6 +136,8 @@ export const setTheme = (themeId) => {
  * Apply theme to document
  */
 export const applyTheme = (themeId) => {
+  if (typeof document === 'undefined') return;
+
   const theme = THEMES[themeId] || THEMES.dark;
   const root = document.documentElement;
 

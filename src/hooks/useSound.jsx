@@ -1,4 +1,4 @@
-import { useCallback, useRef } from 'react';
+import { useCallback, useRef, useEffect } from 'react';
 
 /**
  * Custom hook for audio feedback using Web Audio API
@@ -7,6 +7,16 @@ import { useCallback, useRef } from 'react';
 export const useSound = () => {
   const audioContextRef = useRef(null);
   const alarmIntervalRef = useRef(null);
+
+  // Cleanup interval on unmount to prevent memory leak
+  useEffect(() => {
+    return () => {
+      if (alarmIntervalRef.current) {
+        clearInterval(alarmIntervalRef.current);
+        alarmIntervalRef.current = null;
+      }
+    };
+  }, []);
 
   const getAudioContext = useCallback(() => {
     if (!audioContextRef.current) {

@@ -39,10 +39,10 @@ const ToastItem = memo(({ toast, onRemove }) => {
       >
         {toast.message}
       </span>
-      {toast.action && (
+      {toast.action && toast.action.onClick && (
         <button
           onClick={() => {
-            toast.action.onClick();
+            toast.action.onClick?.();
             onRemove(toast.id);
           }}
           style={{

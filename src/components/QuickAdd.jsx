@@ -24,7 +24,8 @@ const QuickAdd = memo(({ isOpen, onClose, onAdd, selectedDate }) => {
       setInput('');
       setMode('input');
       setSelectedIndex(0);
-      setTimeout(() => inputRef.current?.focus(), 50);
+      const timeoutId = setTimeout(() => inputRef.current?.focus(), 50);
+      return () => clearTimeout(timeoutId);
     }
   }, [isOpen]);
 
@@ -158,7 +159,7 @@ const QuickAdd = memo(({ isOpen, onClose, onAdd, selectedDate }) => {
         const block = blockFromTemplate(
           suggestion.data,
           selectedDate,
-          suggestion.data.hour || 9
+          suggestion.data.hour ?? 9
         );
         onAdd(block);
         break;
@@ -180,8 +181,8 @@ const QuickAdd = memo(({ isOpen, onClose, onAdd, selectedDate }) => {
           title: data.title || 'New block',
           category: data.category || 'work',
           date: selectedDate,
-          hour: data.hour || 9,
-          start_minute: data.start_minute || 0,
+          hour: data.hour ?? 9,
+          start_minute: data.start_minute ?? 0,
           duration_minutes: data.duration || 60
         });
         break;
@@ -196,8 +197,8 @@ const QuickAdd = memo(({ isOpen, onClose, onAdd, selectedDate }) => {
       title: parsed.title || input,
       category: parsed.category || 'work',
       date: selectedDate,
-      hour: parsed.hour || 9,
-      start_minute: parsed.start_minute || 0,
+      hour: parsed.hour ?? 9,
+      start_minute: parsed.start_minute ?? 0,
       duration_minutes: parsed.duration || 60
     });
     onClose();
