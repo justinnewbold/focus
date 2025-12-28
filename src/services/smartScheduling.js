@@ -13,7 +13,7 @@ class SmartSchedulingService {
     const patterns = {
       hourlyProductivity: {},
       dayOfWeekProductivity: {},
-      avgSessionLength: 0,
+      avgSessionLength: 25, // Default 25 minutes
       peakHours: [],
       bestDays: []
     };

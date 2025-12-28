@@ -5,6 +5,7 @@ export { default as TimeBlock } from './TimeBlock';
 export { default as DroppableCell } from './DroppableCell';
 export { default as AnalyticsDashboard } from './AnalyticsDashboard';
 export { default as ErrorBoundary } from './ErrorBoundary';
+export { default as ServiceErrorBoundary } from './ServiceErrorBoundary';
 export { default as LoadingScreen } from './LoadingScreen';
 export { default as SyncStatus } from './SyncStatus';
 export { ToastContainer, ToastItem } from './Toast';
@@ -13,6 +14,7 @@ export { default as FocusMode } from './FocusMode';
 export { default as QuickAdd } from './QuickAdd';
 export { default as ThemeSwitcher } from './ThemeSwitcher';
 export { default as GoalsPanel } from './GoalsPanel';
+export { default as UndoToast } from './UndoToast';
 
 // AI & Calendar components
 export { default as AIAssistant } from './AIAssistant';
