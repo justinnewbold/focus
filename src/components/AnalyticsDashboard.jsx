@@ -1,166 +1,91 @@
-import React, { useMemo, memo } from 'react';
-import PropTypes from 'prop-types';
-import { getToday } from '../utils/dateTime';
+import React, { useState, useMemo } from 'react';
 
-/**
- * Analytics dashboard showing productivity stats
- */
-const AnalyticsDashboard = memo(({ stats, blocks }) => {
-  const today = getToday();
+const AnalyticsDashboard = ({ blocks = [] }) => {
+  const [timeRange, setTimeRange] = useState('week');
+  const filteredBlocks = useMemo(() => {
+    const now = new Date();
+    const days = timeRange === 'week' ? 7 : timeRange === 'month' ? 30 : 365;
+    const start = new Date(now.setDate(now.getDate() - days));
+    return blocks.filter(b => new Date(b.date || b.created_at) >= start);
+  }, [blocks, timeRange]);
 
-  // Memoize calculations to prevent unnecessary recalculations
-  const {
-    todayStats,
-    weekTotal,
-    todayBlocksCount,
-    completedBlocksCount
-  } = useMemo(() => {
-    const todayStatsData = stats.find(s => s.date === today) || {
-      pomodoros_completed: 0,
-      total_focus_minutes: 0
-    };
+  const totalTime = filteredBlocks.reduce((s, b) => s + (b.completed ? (b.timer_duration || 1500) : 0), 0);
+  const formatTime = (s) => { const h = Math.floor(s/3600), m = Math.floor((s%3600)/60); return h > 0 ? `${h}h ${m}m` : `${m}m`; };
 
-    const weekTotalPomodoros = stats.reduce(
-      (sum, s) => sum + (s.pomodoros_completed || 0),
-      0
-    );
-
-    const todayBlocks = blocks.filter(b => b.date === today);
-    const completedBlocks = todayBlocks.filter(b => b.pomodoro_count > 0);
-
-    return {
-      todayStats: todayStatsData,
-      weekTotal: weekTotalPomodoros,
-      todayBlocksCount: todayBlocks.length,
-      completedBlocksCount: completedBlocks.length
-    };
-  }, [stats, blocks, today]);
-
-  const statCards = [
-    {
-      label: 'Pomodoros',
-      value: todayStats.pomodoros_completed || 0,
-      icon: '🍅',
-      color: '#FF6B6B'
-    },
-    {
-      label: 'Focus mins',
-      value: todayStats.total_focus_minutes || todayStats.focus_minutes || 0,
-      icon: '⏱️',
-      color: '#4ECDC4'
-    },
-    {
-      label: 'Blocks',
-      value: `${completedBlocksCount}/${todayBlocksCount}`,
-      icon: '📋',
-      color: '#845EC2'
-    },
-    {
-      label: 'Week Total',
-      value: weekTotal,
-      icon: '📊',
-      color: '#FFC75F'
+  const heatmap = useMemo(() => {
+    const days = [], now = new Date(), range = timeRange === 'week' ? 7 : 30;
+    for (let i = range - 1; i >= 0; i--) {
+      const d = new Date(); d.setDate(now.getDate() - i);
+      const dateStr = d.toISOString().split('T')[0];
+      const mins = filteredBlocks.filter(b => (b.date || b.created_at)?.startsWith(dateStr)).reduce((s, b) => s + ((b.timer_duration || 1500) / 60), 0);
+      days.push({ date: dateStr, mins, level: mins === 0 ? 0 : mins < 60 ? 1 : mins < 120 ? 2 : mins < 180 ? 3 : 4 });
     }
-  ];
+    return days;
+  }, [filteredBlocks, timeRange]);
+
+  const categoryStats = useMemo(() => {
+    const cats = {};
+    filteredBlocks.forEach(b => { const c = b.category || 'General'; cats[c] = (cats[c] || 0) + (b.timer_duration || 1500); });
+    return Object.entries(cats).sort((a, b) => b[1] - a[1]).map(([name, time]) => ({ name, time, pct: Math.round((time / (totalTime || 1)) * 100) }));
+  }, [filteredBlocks, totalTime]);
+
+  const colors = ['#4F46E5', '#10B981', '#F59E0B', '#EF4444', '#8B5CF6', '#EC4899'];
 
   return (
-    <section
-      style={{
-        background: 'rgba(255,255,255,0.03)',
-        borderRadius: '20px',
-        padding: '20px',
-        border: '1px solid rgba(255,255,255,0.05)'
-      }}
-      aria-labelledby="analytics-title"
-    >
-      <h3
-        id="analytics-title"
-        style={{
-          margin: '0 0 16px 0',
-          fontSize: '14px',
-          fontWeight: '600',
-          color: 'rgba(255,255,255,0.7)'
-        }}
-      >
-        Today's Progress
-      </h3>
+    <div style={{ padding: '20px', background: '#1a1a2e', borderRadius: '16px', color: 'white' }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
+        <h2 style={{ margin: 0 }}>📊 Time Analytics</h2>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          {['week', 'month', 'all'].map(r => (
+            <button key={r} onClick={() => setTimeRange(r)} style={{ padding: '8px 16px', borderRadius: '8px', border: 'none', background: timeRange === r ? '#4F46E5' : '#333', color: 'white', cursor: 'pointer' }}>
+              {r === 'week' ? '7 Days' : r === 'month' ? '30 Days' : 'All'}
+            </button>
+          ))}
+        </div>
+      </div>
 
-      <div
-        className="analytics-grid"
-        style={{
-          display: 'grid',
-          gridTemplateColumns: 'repeat(4, 1fr)',
-          gap: '12px'
-        }}
-        role="list"
-        aria-label="Productivity statistics"
-      >
-        {statCards.map((stat, i) => (
-          <div
-            key={i}
-            className="analytics-card"
-            role="listitem"
-            aria-label={`${stat.label}: ${stat.value}`}
-            style={{
-              background: `${stat.color}10`,
-              borderRadius: '12px',
-              padding: '12px 8px',
-              textAlign: 'center'
-            }}
-          >
-            <div
-              style={{ fontSize: '16px', marginBottom: '4px' }}
-              aria-hidden="true"
-            >
-              {stat.icon}
-            </div>
-            <div
-              className="analytics-value"
-              style={{
-                fontFamily: "'JetBrains Mono', monospace",
-                fontSize: '24px',
-                fontWeight: '700',
-                color: stat.color
-              }}
-            >
-              {stat.value}
-            </div>
-            <div
-              className="analytics-label"
-              style={{
-                fontSize: '9px',
-                color: 'rgba(255,255,255,0.5)',
-                textTransform: 'uppercase',
-                letterSpacing: '0.5px'
-              }}
-            >
-              {stat.label}
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px', marginBottom: '24px' }}>
+        <div style={{ background: '#252540', padding: '20px', borderRadius: '12px', textAlign: 'center' }}>
+          <div style={{ fontSize: '32px', marginBottom: '4px' }}>⏱️</div>
+          <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{formatTime(totalTime)}</div>
+          <div style={{ color: '#888', fontSize: '14px' }}>Total Focus</div>
+        </div>
+        <div style={{ background: '#252540', padding: '20px', borderRadius: '12px', textAlign: 'center' }}>
+          <div style={{ fontSize: '32px', marginBottom: '4px' }}>✅</div>
+          <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{filteredBlocks.filter(b => b.completed).length}</div>
+          <div style={{ color: '#888', fontSize: '14px' }}>Completed</div>
+        </div>
+        <div style={{ background: '#252540', padding: '20px', borderRadius: '12px', textAlign: 'center' }}>
+          <div style={{ fontSize: '32px', marginBottom: '4px' }}>📈</div>
+          <div style={{ fontSize: '24px', fontWeight: 'bold' }}>{Math.round(totalTime / 60 / (timeRange === 'week' ? 7 : 30))}m</div>
+          <div style={{ color: '#888', fontSize: '14px' }}>Daily Avg</div>
+        </div>
+      </div>
+
+      <div style={{ marginBottom: '24px' }}>
+        <h3 style={{ marginBottom: '12px' }}>🗓️ Activity Heatmap</h3>
+        <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+          {heatmap.map((d, i) => (
+            <div key={i} title={`${d.date}: ${Math.round(d.mins)}m`} style={{ width: '20px', height: '20px', borderRadius: '4px', background: ['#1a1a2e', '#2d4a3e', '#3d6b4f', '#4d8c60', '#10B981'][d.level] }} />
+          ))}
+        </div>
+      </div>
+
+      <div>
+        <h3 style={{ marginBottom: '12px' }}>🏷️ Time by Category</h3>
+        {categoryStats.map((c, i) => (
+          <div key={c.name} style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+            <div style={{ width: '12px', height: '12px', borderRadius: '50%', background: colors[i % colors.length] }} />
+            <span style={{ flex: 1 }}>{c.name}</span>
+            <span style={{ color: '#888' }}>{formatTime(c.time)}</span>
+            <div style={{ width: '100px', height: '8px', background: '#333', borderRadius: '4px', overflow: 'hidden' }}>
+              <div style={{ width: `${c.pct}%`, height: '100%', background: colors[i % colors.length] }} />
             </div>
           </div>
         ))}
       </div>
-    </section>
+    </div>
   );
-});
-
-AnalyticsDashboard.displayName = 'AnalyticsDashboard';
-
-AnalyticsDashboard.propTypes = {
-  stats: PropTypes.arrayOf(
-    PropTypes.shape({
-      date: PropTypes.string,
-      pomodoros_completed: PropTypes.number,
-      total_focus_minutes: PropTypes.number,
-      focus_minutes: PropTypes.number
-    })
-  ).isRequired,
-  blocks: PropTypes.arrayOf(
-    PropTypes.shape({
-      id: PropTypes.string,
-      date: PropTypes.string,
-      pomodoro_count: PropTypes.number
-    })
-  ).isRequired
 };
 
 export default AnalyticsDashboard;
