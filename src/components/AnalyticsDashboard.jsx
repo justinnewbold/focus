@@ -5,7 +5,7 @@ const AnalyticsDashboard = ({ blocks = [] }) => {
   const filteredBlocks = useMemo(() => {
     const now = new Date();
     const days = timeRange === 'week' ? 7 : timeRange === 'month' ? 30 : 365;
-    const start = new Date(now.setDate(now.getDate() - days));
+    const start = new Date(now.getTime() - days * 24 * 60 * 60 * 1000);
     return blocks.filter(b => new Date(b.date || b.created_at) >= start);
   }, [blocks, timeRange]);
 

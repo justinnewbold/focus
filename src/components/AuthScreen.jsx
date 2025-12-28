@@ -17,14 +17,19 @@ const AuthScreen = memo(({ onAuthStart, onAuthError }) => {
       onAuthStart();
     }
 
-    const { error: authError } = await auth.signInWithGoogle();
+    try {
+      const { error: authError } = await auth.signInWithGoogle();
 
-    if (authError) {
-      setError(authError.message);
-      setIsLoading(false);
-      if (onAuthError) {
-        onAuthError(authError);
+      if (authError) {
+        setError(authError.message);
+        if (onAuthError) {
+          onAuthError(authError);
+        }
       }
+      // Note: On success, the auth state change will trigger a redirect,
+      // but we still reset loading in case the redirect doesn't happen immediately
+    } finally {
+      setIsLoading(false);
     }
   };
 

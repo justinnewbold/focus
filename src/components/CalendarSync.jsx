@@ -54,10 +54,10 @@ export default function CalendarSync({ blocks, onImportBlocks, onUpdateBlock, to
     }
   };
 
-  const loadUpcomingEvents = async () => {
+  const loadUpcomingEvents = useCallback(async (calendarId = selectedCalendar) => {
     try {
       const events = await fetchGoogleCalendarEvents(
-        selectedCalendar,
+        calendarId,
         new Date().toISOString(),
         new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
       );
@@ -65,7 +65,7 @@ export default function CalendarSync({ blocks, onImportBlocks, onUpdateBlock, to
     } catch (error) {
       console.error('Error loading events:', error);
     }
-  };
+  }, [selectedCalendar]);
 
   const handleConnect = async () => {
     setIsLoading(true);
@@ -266,8 +266,9 @@ export default function CalendarSync({ blocks, onImportBlocks, onUpdateBlock, to
               <select
                 value={selectedCalendar}
                 onChange={(e) => {
-                  setSelectedCalendar(e.target.value);
-                  loadUpcomingEvents();
+                  const newCalendarId = e.target.value;
+                  setSelectedCalendar(newCalendarId);
+                  loadUpcomingEvents(newCalendarId);
                 }}
                 style={{
                   width: '100%',

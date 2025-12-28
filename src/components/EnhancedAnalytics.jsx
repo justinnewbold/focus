@@ -14,28 +14,28 @@ export default function EnhancedAnalytics({ blocks, stats, isVisible, onClose })
   // Calculate analytics data
   const getFilteredData = useCallback(() => {
     const now = new Date();
-    let startDate = new Date();
-    
+    let startDate;
+
     switch (dateRange) {
       case 'today':
         startDate = new Date(now.toISOString().split('T')[0]);
         break;
       case 'week':
-        startDate.setDate(now.getDate() - 7);
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
         break;
       case 'month':
-        startDate.setDate(now.getDate() - 30);
+        startDate = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
         break;
       case 'all':
         startDate = new Date(0);
         break;
       default:
-        startDate.setDate(now.getDate() - 7);
+        startDate = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
     }
 
     return {
       blocks: blocks.filter(b => new Date(b.date) >= startDate),
-      stats: stats.filter(s => new Date(s.created_at) >= startDate)
+      stats: Array.isArray(stats) ? stats.filter(s => new Date(s.created_at) >= startDate) : []
     };
   }, [blocks, stats, dateRange]);
 

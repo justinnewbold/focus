@@ -182,8 +182,8 @@ const TimeBlock = memo(({
               fontWeight: '600',
               fontSize: '15px',
               color: '#fff',
-              marginBottom: '6px',
-              margin: 0
+              margin: 0,
+              marginBottom: '6px'
             }}
           >
             {block.title}

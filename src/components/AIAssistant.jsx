@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useCallback } from 'react';
 import PropTypes from 'prop-types';
 import { generateProductivityInsights, getFallbackInsights } from '../services/aiService';
 
@@ -13,27 +13,9 @@ export default function AIAssistant({ blocks, stats, preferences }) {
   const [lastRefresh, setLastRefresh] = useState(null);
   const hasLoadedRef = useRef(false);
   const refreshIntervalRef = useRef(null);
+  const loadInsightsRef = useRef(null);
 
-  // Load insights only once on mount
-  useEffect(() => {
-    if (hasLoadedRef.current) return;
-    hasLoadedRef.current = true;
-    
-    loadInsights();
-    
-    // Refresh every 30 minutes
-    refreshIntervalRef.current = setInterval(() => {
-      loadInsights();
-    }, 30 * 60 * 1000);
-    
-    return () => {
-      if (refreshIntervalRef.current) {
-        clearInterval(refreshIntervalRef.current);
-      }
-    };
-  }, []); // Empty dependency array - only run once
-
-  const loadInsights = async () => {
+  const loadInsights = useCallback(async () => {
     setIsLoading(true);
     try {
       const data = await generateProductivityInsights(blocks, stats, preferences);
@@ -45,7 +27,31 @@ export default function AIAssistant({ blocks, stats, preferences }) {
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [blocks, stats, preferences]);
+
+  // Keep ref updated with latest loadInsights function
+  useEffect(() => {
+    loadInsightsRef.current = loadInsights;
+  }, [loadInsights]);
+
+  // Load insights only once on mount and set up refresh interval
+  useEffect(() => {
+    if (hasLoadedRef.current) return;
+    hasLoadedRef.current = true;
+
+    loadInsightsRef.current?.();
+
+    // Refresh every 30 minutes using ref to get latest props
+    refreshIntervalRef.current = setInterval(() => {
+      loadInsightsRef.current?.();
+    }, 30 * 60 * 1000);
+
+    return () => {
+      if (refreshIntervalRef.current) {
+        clearInterval(refreshIntervalRef.current);
+      }
+    };
+  }, []); // Empty dependency array - only run once
 
   const handleRefresh = () => {
     loadInsights();

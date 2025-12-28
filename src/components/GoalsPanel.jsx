@@ -170,7 +170,8 @@ GoalsPanel.displayName = 'GoalsPanel';
 
 GoalsPanel.propTypes = {
   blocks: PropTypes.array.isRequired,
-  stats: PropTypes.array.isRequired
+  // Stats can be either an array of records or an object with summary data
+  stats: PropTypes.oneOfType([PropTypes.array, PropTypes.object]).isRequired
 };
 
 export default GoalsPanel;

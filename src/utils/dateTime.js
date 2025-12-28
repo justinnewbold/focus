@@ -57,9 +57,11 @@ export const getWeekDates = (date) => {
   const d = new Date(date);
   const day = d.getDay();
   const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-  const monday = new Date(d.setDate(diff));
+  // Create monday without mutating the original date
+  const monday = new Date(d.getTime());
+  monday.setDate(diff);
   return Array.from({ length: 7 }, (_, i) => {
-    const weekDate = new Date(monday);
+    const weekDate = new Date(monday.getTime());
     weekDate.setDate(monday.getDate() + i);
     return weekDate.toISOString().split('T')[0];
   });
