@@ -1,17 +1,21 @@
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect } from 'react';
 import PropTypes from 'prop-types';
 import {
-  signInToGoogle,
-  signOutFromGoogle,
-  isGoogleSignedIn,
+  connectGoogleCalendar,
+  disconnectGoogleCalendar,
+  isGoogleCalendarConnected,
   fetchGoogleCalendarEvents,
-  syncBlocksToGoogle,
   importGoogleEventsAsBlocks,
-  getCalendarList
+  getCalendarList,
+  syncBlocksToGoogle,
+  isCalendarOAuthRedirect,
+  clearCalendarOAuthRedirect,
+  initializeCalendarSync
 } from '../services/calendarService';
 
 /**
- * Google Calendar Sync Panel Component
+ * Google Calendar Sync Panel
+ * Auto-imports events after connecting
  */
 export default function CalendarSync({ blocks, onImportBlocks, onUpdateBlock, toast }) {
   const [isConnected, setIsConnected] = useState(false);
@@ -22,16 +26,55 @@ export default function CalendarSync({ blocks, onImportBlocks, onUpdateBlock, to
   const [upcomingEvents, setUpcomingEvents] = useState([]);
   const [showEvents, setShowEvents] = useState(false);
   const [lastSyncTime, setLastSyncTime] = useState(null);
+  const [debugInfo, setDebugInfo] = useState('');
 
-  // Check connection status on mount
+  // Initialize on mount
   useEffect(() => {
-    checkConnectionStatus();
+    initializeCalendarSync();
+    checkConnection();
   }, []);
 
-  const checkConnectionStatus = async () => {
+  // Handle OAuth redirect - auto-import after connecting
+  useEffect(() => {
+    if (isCalendarOAuthRedirect()) {
+      handleOAuthReturn();
+    }
+  }, []);
+
+  const handleOAuthReturn = async () => {
+    setIsLoading(true);
+    setDebugInfo('Processing OAuth return...');
+    clearCalendarOAuthRedirect();
+    
+    // Wait for Supabase to process the OAuth callback
+    await new Promise(r => setTimeout(r, 2000));
+    
+    // Re-initialize to capture token
+    await initializeCalendarSync();
+    
+    const connected = await isGoogleCalendarConnected();
+    setDebugInfo(`Connection check: ${connected}`);
+    setIsConnected(connected);
+    
+    if (connected) {
+      toast?.success('Connected to Google Calendar!');
+      await loadCalendars();
+      
+      // Auto-import events
+      setDebugInfo('Auto-importing events...');
+      await handleImport(true);
+    } else {
+      toast?.error('Connection failed - please try again');
+      setDebugInfo('Connection failed - no token found');
+    }
+    
+    setIsLoading(false);
+  };
+
+  const checkConnection = async () => {
     setIsLoading(true);
     try {
-      const connected = await isGoogleSignedIn();
+      const connected = await isGoogleCalendarConnected();
       setIsConnected(connected);
       
       if (connected) {
@@ -39,7 +82,7 @@ export default function CalendarSync({ blocks, onImportBlocks, onUpdateBlock, to
         await loadUpcomingEvents();
       }
     } catch (error) {
-      console.error('Error checking connection:', error);
+      console.error('Connection check error:', error);
     } finally {
       setIsLoading(false);
     }
@@ -47,109 +90,119 @@ export default function CalendarSync({ blocks, onImportBlocks, onUpdateBlock, to
 
   const loadCalendars = async () => {
     try {
-      const calList = await getCalendarList();
-      setCalendars(calList);
-    } catch (error) {
-      console.error('Error loading calendars:', error);
+      const cals = await getCalendarList();
+      setCalendars(cals);
+    } catch (e) {
+      console.error('Load calendars error:', e);
     }
   };
 
   const loadUpcomingEvents = async () => {
     try {
-      const events = await fetchGoogleCalendarEvents(
-        selectedCalendar,
-        new Date().toISOString(),
-        new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString()
-      );
+      const events = await fetchGoogleCalendarEvents(selectedCalendar);
       setUpcomingEvents(events.slice(0, 5));
-    } catch (error) {
-      console.error('Error loading events:', error);
+    } catch (e) {
+      console.error('Load events error:', e);
     }
   };
 
   const handleConnect = async () => {
-    setIsLoading(true);
     try {
-      await signInToGoogle();
-      setIsConnected(true);
-      await loadCalendars();
-      await loadUpcomingEvents();
-      toast?.success('Connected to Google Calendar!');
+      setDebugInfo('Starting OAuth flow...');
+      await connectGoogleCalendar();
+      // Page will redirect to Google
     } catch (error) {
-      console.error('Failed to connect:', error);
-      toast?.error('Failed to connect to Google Calendar');
-    } finally {
-      setIsLoading(false);
+      console.error('Connect error:', error);
+      toast?.error('Failed to start Google sign-in');
     }
   };
 
   const handleDisconnect = async () => {
-    try {
-      await signOutFromGoogle();
-      setIsConnected(false);
-      setCalendars([]);
-      setUpcomingEvents([]);
-      toast?.success('Disconnected from Google Calendar');
-    } catch (error) {
-      console.error('Failed to disconnect:', error);
-    }
+    await disconnectGoogleCalendar();
+    setIsConnected(false);
+    setCalendars([]);
+    setUpcomingEvents([]);
+    setLastSyncTime(null);
+    toast?.success('Disconnected from Google Calendar');
   };
 
-  const handleSyncToGoogle = async () => {
-    if (!isConnected) return;
+  const handleImport = async (isAutoImport = false) => {
+    if (isSyncing) return;
     
     setIsSyncing(true);
+    setDebugInfo('Fetching events from Google...');
+    
     try {
-      // Get today's and future blocks
-      const today = new Date().toISOString().split('T')[0];
-      const blocksToSync = blocks.filter(b => b.date >= today);
+      const now = new Date();
+      const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      const endOfWeek = new Date(startOfDay.getTime() + 7 * 24 * 60 * 60 * 1000);
       
-      const result = await syncBlocksToGoogle(blocksToSync, selectedCalendar);
+      const importedBlocks = await importGoogleEventsAsBlocks(
+        startOfDay.toISOString(),
+        endOfWeek.toISOString(),
+        selectedCalendar
+      );
       
-      // Update blocks with googleEventId
-      blocksToSync.forEach(block => {
-        if (block.googleEventId) {
-          onUpdateBlock?.(block.id, { googleEventId: block.googleEventId });
-        }
-      });
+      setDebugInfo(`Found ${importedBlocks.length} events`);
+      
+      // Filter out already imported events
+      const existingIds = new Set(
+        blocks.filter(b => b.google_event_id).map(b => b.google_event_id)
+      );
+      const newBlocks = importedBlocks.filter(b => !existingIds.has(b.google_event_id));
+      
+      if (newBlocks.length > 0) {
+        onImportBlocks?.(newBlocks);
+        toast?.success(`Imported ${newBlocks.length} events from Google Calendar!`);
+      } else if (importedBlocks.length > 0) {
+        toast?.info('All events already imported');
+      } else {
+        toast?.info('No upcoming events found');
+      }
       
       setLastSyncTime(new Date());
-      
-      if (result.failed > 0) {
-        toast?.warning(`Synced ${result.synced} blocks, ${result.failed} failed`);
-      } else {
-        toast?.success(`Successfully synced ${result.synced} blocks to Google Calendar!`);
-      }
+      await loadUpcomingEvents();
     } catch (error) {
-      console.error('Sync error:', error);
-      toast?.error('Failed to sync to Google Calendar');
+      console.error('Import error:', error);
+      setDebugInfo(`Error: ${error.message}`);
+      
+      if (error.message === 'NO_TOKEN' || error.message === 'TOKEN_EXPIRED') {
+        setIsConnected(false);
+        toast?.error('Session expired. Please reconnect to Google Calendar.');
+      } else {
+        toast?.error('Failed to import events');
+      }
     } finally {
       setIsSyncing(false);
     }
   };
 
-  const handleImportFromGoogle = async () => {
-    if (!isConnected) return;
+  const handlePushToGoogle = async () => {
+    if (isSyncing) return;
     
     setIsSyncing(true);
     try {
-      const now = new Date();
-      const weekFromNow = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+      const today = new Date().toISOString().split('T')[0];
+      const blocksToSync = blocks.filter(b => b.date >= today && !b.google_event_id);
       
-      const importedBlocks = await importGoogleEventsAsBlocks(
-        now.toISOString(),
-        weekFromNow.toISOString()
-      );
-      
-      if (importedBlocks.length > 0) {
-        onImportBlocks?.(importedBlocks);
-        toast?.success(`Imported ${importedBlocks.length} events from Google Calendar!`);
-      } else {
-        toast?.info('No upcoming events found to import');
+      if (blocksToSync.length === 0) {
+        toast?.info('No new blocks to sync');
+        return;
       }
+      
+      const result = await syncBlocksToGoogle(blocksToSync, selectedCalendar);
+      
+      blocksToSync.forEach(block => {
+        if (block.google_event_id) {
+          onUpdateBlock?.(block.id, { google_event_id: block.google_event_id });
+        }
+      });
+      
+      setLastSyncTime(new Date());
+      toast?.success(`Pushed ${result.synced} blocks to Google Calendar!`);
     } catch (error) {
-      console.error('Import error:', error);
-      toast?.error('Failed to import from Google Calendar');
+      console.error('Push error:', error);
+      toast?.error('Failed to push to Google Calendar');
     } finally {
       setIsSyncing(false);
     }
@@ -157,15 +210,9 @@ export default function CalendarSync({ blocks, onImportBlocks, onUpdateBlock, to
 
   if (isLoading) {
     return (
-      <div style={{
-        background: 'var(--bg-secondary, #f8fafc)',
-        borderRadius: '12px',
-        padding: '20px',
-        textAlign: 'center'
-      }}>
+      <div style={{ background: 'var(--surface)', borderRadius: '12px', padding: '20px', textAlign: 'center' }}>
         <div style={{
-          width: '24px',
-          height: '24px',
+          width: '24px', height: '24px',
           border: '3px solid rgba(66, 133, 244, 0.2)',
           borderTopColor: '#4285f4',
           borderRadius: '50%',
@@ -173,50 +220,37 @@ export default function CalendarSync({ blocks, onImportBlocks, onUpdateBlock, to
           margin: '0 auto'
         }} />
         <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        <div style={{ marginTop: '8px', fontSize: '12px', color: 'var(--text-muted)' }}>
+          {debugInfo || 'Connecting...'}
+        </div>
       </div>
     );
   }
 
   return (
-    <div style={{
-      background: 'var(--bg-secondary, #f8fafc)',
-      borderRadius: '12px',
-      padding: '16px',
-      marginBottom: '16px'
-    }}>
+    <div style={{ background: 'var(--surface)', borderRadius: '12px', padding: '16px', marginBottom: '16px' }}>
       {/* Header */}
-      <div style={{
-        display: 'flex',
-        justifyContent: 'space-between',
-        alignItems: 'center',
-        marginBottom: '12px'
-      }}>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <svg width="20" height="20" viewBox="0 0 24 24" fill="none">
             <rect x="3" y="4" width="18" height="18" rx="2" stroke="#4285f4" strokeWidth="2"/>
             <path d="M3 9h18" stroke="#4285f4" strokeWidth="2"/>
             <path d="M9 4V2M15 4V2" stroke="#4285f4" strokeWidth="2" strokeLinecap="round"/>
           </svg>
-          <span style={{ fontWeight: '600', fontSize: '14px', color: 'var(--text-primary, #1a1a2e)' }}>
+          <span style={{ fontWeight: '600', fontSize: '14px', color: 'var(--text-primary)' }}>
             Google Calendar
           </span>
         </div>
         
         <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          gap: '6px',
-          padding: '4px 10px',
-          borderRadius: '12px',
+          display: 'flex', alignItems: 'center', gap: '6px',
+          padding: '4px 10px', borderRadius: '12px',
           background: isConnected ? 'rgba(16, 185, 129, 0.1)' : 'rgba(239, 68, 68, 0.1)',
           color: isConnected ? '#10b981' : '#ef4444',
-          fontSize: '11px',
-          fontWeight: '500'
+          fontSize: '11px', fontWeight: '500'
         }}>
           <div style={{
-            width: '6px',
-            height: '6px',
-            borderRadius: '50%',
+            width: '6px', height: '6px', borderRadius: '50%',
             background: isConnected ? '#10b981' : '#ef4444'
           }} />
           {isConnected ? 'Connected' : 'Not Connected'}
@@ -224,28 +258,15 @@ export default function CalendarSync({ blocks, onImportBlocks, onUpdateBlock, to
       </div>
 
       {!isConnected ? (
-        /* Connect Button */
         <button
           onClick={handleConnect}
           style={{
-            width: '100%',
-            padding: '12px',
-            borderRadius: '8px',
-            border: 'none',
-            background: 'white',
-            boxShadow: '0 1px 3px rgba(0,0,0,0.1)',
-            cursor: 'pointer',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: '10px',
-            fontSize: '14px',
-            fontWeight: '500',
-            color: '#1a1a2e',
-            transition: 'box-shadow 0.2s ease'
+            width: '100%', padding: '12px', borderRadius: '8px',
+            border: 'none', background: 'white',
+            boxShadow: '0 1px 3px rgba(0,0,0,0.1)', cursor: 'pointer',
+            display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px',
+            fontSize: '14px', fontWeight: '500', color: '#1a1a2e'
           }}
-          onMouseOver={(e) => e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.15)'}
-          onMouseOut={(e) => e.currentTarget.style.boxShadow = '0 1px 3px rgba(0,0,0,0.1)'}
         >
           <svg width="18" height="18" viewBox="0 0 24 24">
             <path fill="#4285F4" d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"/>
@@ -260,23 +281,15 @@ export default function CalendarSync({ blocks, onImportBlocks, onUpdateBlock, to
           {/* Calendar Selector */}
           {calendars.length > 0 && (
             <div style={{ marginBottom: '12px' }}>
-              <label style={{ fontSize: '12px', color: 'var(--text-secondary, #64748b)', display: 'block', marginBottom: '4px' }}>
+              <label style={{ fontSize: '12px', color: 'var(--text-secondary)', display: 'block', marginBottom: '4px' }}>
                 Calendar
               </label>
               <select
                 value={selectedCalendar}
-                onChange={(e) => {
-                  setSelectedCalendar(e.target.value);
-                  loadUpcomingEvents();
-                }}
+                onChange={(e) => { setSelectedCalendar(e.target.value); loadUpcomingEvents(); }}
                 style={{
-                  width: '100%',
-                  padding: '8px 12px',
-                  borderRadius: '6px',
-                  border: '1px solid var(--border-color, #e2e8f0)',
-                  background: 'white',
-                  fontSize: '13px',
-                  cursor: 'pointer'
+                  width: '100%', padding: '8px 12px', borderRadius: '6px',
+                  border: '1px solid var(--border-color)', background: 'white', fontSize: '13px'
                 }}
               >
                 {calendars.map(cal => (
@@ -291,79 +304,52 @@ export default function CalendarSync({ blocks, onImportBlocks, onUpdateBlock, to
           {/* Sync Buttons */}
           <div style={{ display: 'flex', gap: '8px', marginBottom: '12px' }}>
             <button
-              onClick={handleSyncToGoogle}
+              onClick={handlePushToGoogle}
               disabled={isSyncing}
               style={{
-                flex: 1,
-                padding: '10px',
-                borderRadius: '8px',
-                border: 'none',
+                flex: 1, padding: '10px', borderRadius: '8px', border: 'none',
                 background: 'linear-gradient(135deg, #4285f4 0%, #1a73e8 100%)',
-                color: 'white',
-                fontSize: '12px',
-                fontWeight: '500',
+                color: 'white', fontSize: '12px', fontWeight: '500',
                 cursor: isSyncing ? 'not-allowed' : 'pointer',
                 opacity: isSyncing ? 0.7 : 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px'
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
               }}
             >
-              {isSyncing ? '⏳' : '↑'} Sync to Google
+              {isSyncing ? '⏳' : '↑'} Push to Google
             </button>
             <button
-              onClick={handleImportFromGoogle}
+              onClick={() => handleImport(false)}
               disabled={isSyncing}
               style={{
-                flex: 1,
-                padding: '10px',
-                borderRadius: '8px',
-                border: '1px solid #4285f4',
-                background: 'white',
-                color: '#4285f4',
-                fontSize: '12px',
-                fontWeight: '500',
+                flex: 1, padding: '10px', borderRadius: '8px',
+                border: '1px solid #4285f4', background: 'white',
+                color: '#4285f4', fontSize: '12px', fontWeight: '500',
                 cursor: isSyncing ? 'not-allowed' : 'pointer',
                 opacity: isSyncing ? 0.7 : 1,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '6px'
+                display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '6px'
               }}
             >
-              {isSyncing ? '⏳' : '↓'} Import Events
+              {isSyncing ? '⏳' : '↓'} Pull from Google
             </button>
           </div>
 
-          {/* Last Sync Time */}
+          {/* Last Sync & Debug */}
           {lastSyncTime && (
-            <div style={{
-              fontSize: '11px',
-              color: 'var(--text-secondary, #64748b)',
-              textAlign: 'center',
-              marginBottom: '12px'
-            }}>
+            <div style={{ fontSize: '11px', color: 'var(--text-secondary)', textAlign: 'center', marginBottom: '8px' }}>
               Last synced: {lastSyncTime.toLocaleTimeString()}
             </div>
           )}
 
-          {/* Upcoming Events Preview */}
+          {/* Upcoming Events */}
           {upcomingEvents.length > 0 && (
             <div>
               <button
                 onClick={() => setShowEvents(!showEvents)}
                 style={{
-                  width: '100%',
-                  padding: '8px',
-                  background: 'transparent',
-                  border: 'none',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'space-between',
-                  fontSize: '12px',
-                  color: 'var(--text-secondary, #64748b)'
+                  width: '100%', padding: '8px', background: 'transparent',
+                  border: 'none', cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+                  fontSize: '12px', color: 'var(--text-secondary)'
                 }}
               >
                 <span>📅 Upcoming ({upcomingEvents.length})</span>
@@ -373,20 +359,12 @@ export default function CalendarSync({ blocks, onImportBlocks, onUpdateBlock, to
               {showEvents && (
                 <div style={{ display: 'flex', flexDirection: 'column', gap: '6px', marginTop: '8px' }}>
                   {upcomingEvents.map(event => (
-                    <div
-                      key={event.id}
-                      style={{
-                        padding: '8px 10px',
-                        background: 'white',
-                        borderRadius: '6px',
-                        fontSize: '12px',
-                        borderLeft: '3px solid #4285f4'
-                      }}
-                    >
-                      <div style={{ fontWeight: '500', color: 'var(--text-primary, #1a1a2e)' }}>
-                        {event.title}
-                      </div>
-                      <div style={{ color: 'var(--text-secondary, #64748b)', marginTop: '2px' }}>
+                    <div key={event.id} style={{
+                      padding: '8px 10px', background: 'white', borderRadius: '6px',
+                      fontSize: '12px', borderLeft: '3px solid #4285f4'
+                    }}>
+                      <div style={{ fontWeight: '500', color: 'var(--text-primary)' }}>{event.title}</div>
+                      <div style={{ color: 'var(--text-secondary)', marginTop: '2px' }}>
                         {new Date(event.start).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </div>
                     </div>
@@ -400,14 +378,9 @@ export default function CalendarSync({ blocks, onImportBlocks, onUpdateBlock, to
           <button
             onClick={handleDisconnect}
             style={{
-              width: '100%',
-              padding: '8px',
-              marginTop: '12px',
-              background: 'transparent',
-              border: 'none',
-              color: '#ef4444',
-              fontSize: '12px',
-              cursor: 'pointer'
+              width: '100%', padding: '8px', marginTop: '12px',
+              background: 'transparent', border: 'none',
+              color: '#ef4444', fontSize: '12px', cursor: 'pointer'
             }}
           >
             Disconnect
