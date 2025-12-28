@@ -4,10 +4,22 @@ import { useDrag } from '../hooks/useDrag';
 
 /**
  * Droppable cell component for drag-and-drop functionality
+ * FIXED: Accept both onClick and onCellClick props, add isCurrentHour styling
  */
-const DroppableCell = memo(({ date, hour, children, onCellClick, blocks = [] }) => {
+const DroppableCell = memo(({ 
+  date, 
+  hour, 
+  children, 
+  onClick,
+  onCellClick,
+  blocks = [],
+  isCurrentHour = false 
+}) => {
   const drag = useDrag();
   const [isOver, setIsOver] = useState(false);
+
+  // Use either onClick or onCellClick (onClick takes precedence for backward compatibility)
+  const handleCellClick = onClick || onCellClick;
 
   // Define hasBlocks before using it in handlers
   const hasBlocks = blocks.length > 0 || (children && React.Children.count(children) > 0);
@@ -30,16 +42,41 @@ const DroppableCell = memo(({ date, hour, children, onCellClick, blocks = [] }) 
   };
 
   const handleClick = () => {
-    if (!hasBlocks) {
-      onCellClick(date, hour);
+    if (!hasBlocks && handleCellClick) {
+      handleCellClick(date, hour);
     }
   };
 
   const handleKeyDown = (e) => {
-    if ((e.key === 'Enter' || e.key === ' ') && !hasBlocks) {
+    if ((e.key === 'Enter' || e.key === ' ') && !hasBlocks && handleCellClick) {
       e.preventDefault();
-      onCellClick(date, hour);
+      handleCellClick(date, hour);
     }
+  };
+
+  // Determine background based on state
+  const getBackground = () => {
+    if (isOver) {
+      return 'rgba(78, 205, 196, 0.2)';
+    }
+    if (isCurrentHour) {
+      return 'rgba(255, 107, 107, 0.08)';
+    }
+    if (hasBlocks) {
+      return 'transparent';
+    }
+    return 'var(--surface, rgba(255,255,255,0.02))';
+  };
+
+  // Determine border based on state
+  const getBorder = () => {
+    if (isOver) {
+      return '2px dashed #4ECDC4';
+    }
+    if (isCurrentHour) {
+      return '1px solid rgba(255, 107, 107, 0.3)';
+    }
+    return '1px solid transparent';
   };
 
   return (
@@ -55,17 +92,14 @@ const DroppableCell = memo(({ date, hour, children, onCellClick, blocks = [] }) 
       style={{
         minHeight: '28px',
         borderRadius: '6px',
-        background: isOver
-          ? 'rgba(78,205,196,0.2)'
-          : hasBlocks
-          ? 'transparent'
-          : 'rgba(255,255,255,0.02)',
-        border: isOver
-          ? '2px dashed #4ECDC4'
-          : '1px solid transparent',
+        background: getBackground(),
+        border: getBorder(),
         cursor: hasBlocks ? 'default' : 'pointer',
         transition: 'all 0.2s ease',
-        padding: '2px'
+        padding: '2px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '2px'
       }}
     >
       {children}
@@ -79,12 +113,15 @@ DroppableCell.propTypes = {
   date: PropTypes.string.isRequired,
   hour: PropTypes.number.isRequired,
   children: PropTypes.node,
-  onCellClick: PropTypes.func.isRequired,
-  blocks: PropTypes.array
+  onClick: PropTypes.func,
+  onCellClick: PropTypes.func,
+  blocks: PropTypes.array,
+  isCurrentHour: PropTypes.bool
 };
 
 DroppableCell.defaultProps = {
-  blocks: []
+  blocks: [],
+  isCurrentHour: false
 };
 
 export default DroppableCell;
