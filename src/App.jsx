@@ -356,11 +356,12 @@ function App() {
 
   // Keyboard shortcuts
   useKeyboardShortcuts({
-    'n': () => setShowModal(true),
-    'q': () => setShowQuickAdd(true),
-    'f': () => setShowFocusMode(true),
-    'a': () => setShowEnhancedAnalytics(true),
-    'Escape': () => {
+    newBlock: () => setShowModal(true),
+    quickAdd: () => setShowQuickAdd(true),
+    focusMode: () => setShowFocusMode(true),
+    toggleTimer: () => timerRef.current?.toggleTimer(),
+    resetTimer: () => timerRef.current?.resetTimer(),
+    closeModal: () => {
       setShowModal(false);
       setEditingBlock(null);
       setShowFocusMode(false);
@@ -665,11 +666,11 @@ function App() {
           {/* Modals */}
           {showModal && (
             <AddBlockModal
-              isOpen={showModal}
+              hour={selectedHour}
+              date={selectedDate}
+              onAdd={handleAddBlock}
               onClose={() => setShowModal(false)}
-              onSave={handleAddBlock}
-              initialDate={selectedDate}
-              initialHour={selectedHour}
+              existingBlocks={blocks}
             />
           )}
 

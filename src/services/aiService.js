@@ -29,10 +29,11 @@ export async function generateProductivityInsights(blocks, stats, preferences = 
 
   const today = new Date().toISOString().split('T')[0];
   const todayBlocks = blocks.filter(b => b.date === today);
+  const now = new Date();
+  const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+  weekAgo.setHours(0, 0, 0, 0);
   const weekBlocks = blocks.filter(b => {
     const blockDate = new Date(b.date);
-    const now = new Date();
-    const weekAgo = new Date(now.setDate(now.getDate() - 7));
     return blockDate >= weekAgo;
   });
 
