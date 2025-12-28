@@ -1,15 +1,59 @@
 /**
  * AI Service - Gemini-powered productivity assistant
  * Provides daily insights, schedule optimization, and productivity analysis
+ * FIXED: Added proper Accept headers to prevent 406 errors
  */
 
-// Use gemini-pro which is more widely available
-const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent';
+// Use gemini-1.5-flash which is more reliable and available
+const GEMINI_API_URL = 'https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent';
 
 // Track if API is working to prevent spam
 let apiAvailable = true;
 let lastApiCheck = 0;
 const API_CHECK_INTERVAL = 5 * 60 * 1000; // 5 minutes between retries after failure
+
+/**
+ * Make request to Gemini API with proper headers
+ */
+async function geminiRequest(prompt, config = {}) {
+  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
+  
+  if (!apiKey) {
+    throw new Error('Gemini API key not configured');
+  }
+
+  const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Accept': 'application/json'
+    },
+    body: JSON.stringify({
+      contents: [{ parts: [{ text: prompt }] }],
+      generationConfig: {
+        temperature: config.temperature || 0.7,
+        maxOutputTokens: config.maxOutputTokens || 1024,
+      }
+    })
+  });
+
+  // Handle specific error codes
+  if (response.status === 406) {
+    throw new Error('API request not acceptable - check content format');
+  }
+  
+  if (response.status === 429) {
+    throw new Error('Rate limited - please wait before trying again');
+  }
+
+  if (!response.ok) {
+    const errorText = await response.text().catch(() => 'Unknown error');
+    throw new Error(`Gemini API error (${response.status}): ${errorText}`);
+  }
+
+  const data = await response.json();
+  return data.candidates?.[0]?.content?.parts?.[0]?.text || null;
+}
 
 /**
  * Generate AI productivity insights based on user's schedule and stats
@@ -31,7 +75,7 @@ export async function generateProductivityInsights(blocks, stats, preferences = 
   const todayBlocks = blocks.filter(b => b.date === today);
   const now = new Date();
   const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-  weekAgo.setHours(0, 0, 0, 0); // Start of day for accurate comparison
+  weekAgo.setHours(0, 0, 0, 0);
   const weekBlocks = blocks.filter(b => {
     const blockDate = new Date(b.date);
     return blockDate >= weekAgo;
@@ -40,28 +84,8 @@ export async function generateProductivityInsights(blocks, stats, preferences = 
   const prompt = buildInsightsPrompt(todayBlocks, weekBlocks, stats, preferences);
 
   try {
-    const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 1024,
-        }
-      })
-    });
-
-    if (!response.ok) {
-      apiAvailable = false;
-      lastApiCheck = Date.now();
-      console.warn(`Gemini API error: ${response.status} - using fallback`);
-      return getFallbackInsights(blocks, stats);
-    }
-
+    const text = await geminiRequest(prompt, { temperature: 0.7, maxOutputTokens: 1024 });
     apiAvailable = true;
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
     
     if (!text) {
       return getFallbackInsights(blocks, stats);
@@ -89,28 +113,8 @@ export async function generateWeeklyReport(blocks, stats) {
   const prompt = buildWeeklyReportPrompt(blocks, stats);
 
   try {
-    const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.7,
-          maxOutputTokens: 2048,
-        }
-      })
-    });
-
-    if (!response.ok) {
-      apiAvailable = false;
-      lastApiCheck = Date.now();
-      return getFallbackWeeklyReport(blocks, stats);
-    }
-
+    const text = await geminiRequest(prompt, { temperature: 0.7, maxOutputTokens: 2048 });
     apiAvailable = true;
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    
     return text || getFallbackWeeklyReport(blocks, stats);
   } catch (error) {
     apiAvailable = false;
@@ -133,28 +137,8 @@ export async function getSchedulingSuggestions(blocks, newBlockCategory, preferr
   const prompt = buildSchedulingPrompt(blocks, newBlockCategory, preferredTimes);
 
   try {
-    const response = await fetch(`${GEMINI_API_URL}?key=${apiKey}`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        contents: [{ parts: [{ text: prompt }] }],
-        generationConfig: {
-          temperature: 0.5,
-          maxOutputTokens: 512,
-        }
-      })
-    });
-
-    if (!response.ok) {
-      apiAvailable = false;
-      lastApiCheck = Date.now();
-      return getFallbackSchedulingSuggestions(blocks, newBlockCategory);
-    }
-
+    const text = await geminiRequest(prompt, { temperature: 0.5, maxOutputTokens: 512 });
     apiAvailable = true;
-    const data = await response.json();
-    const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
-    
     return parseSchedulingSuggestions(text) || getFallbackSchedulingSuggestions(blocks, newBlockCategory);
   } catch (error) {
     apiAvailable = false;
@@ -172,7 +156,7 @@ function buildInsightsPrompt(todayBlocks, weekBlocks, stats, preferences) {
   return `You are a friendly productivity coach. Analyze this schedule data and provide brief, actionable insights.
 
 Today's Schedule (${todayBlocks.length} blocks):
-${todayBlocks.map(b => `- ${b.title} (${b.category}) at ${b.start_time}`).join('\n') || 'No blocks scheduled yet'}
+${todayBlocks.map(b => `- ${b.title} (${b.category}) at ${b.hour}:00`).join('\n') || 'No blocks scheduled yet'}
 
 This Week's Stats:
 - Total blocks: ${weekBlocks.length}
@@ -181,7 +165,7 @@ This Week's Stats:
 
 Time: ${timeOfDay}
 
-Respond in JSON format:
+Respond in JSON format only, no markdown:
 {
   "greeting": "Brief personalized greeting for ${timeOfDay}",
   "focusScore": <number 0-100 based on schedule quality>,
@@ -216,7 +200,7 @@ Keep it friendly and encouraging.`;
 function buildSchedulingPrompt(blocks, category, preferredTimes) {
   const today = new Date().toISOString().split('T')[0];
   const todayBlocks = blocks.filter(b => b.date === today);
-  const occupiedSlots = todayBlocks.map(b => b.start_time);
+  const occupiedSlots = todayBlocks.map(b => `${b.hour}:00`);
 
   return `Suggest optimal time slots for a "${category}" block today.
 
@@ -224,7 +208,7 @@ Already scheduled: ${occupiedSlots.join(', ') || 'Nothing yet'}
 Preferred times: ${preferredTimes.join(', ') || 'No preference'}
 Category: ${category}
 
-Respond with JSON array of 3 suggested times:
+Respond with JSON array of 3 suggested times only, no markdown:
 ["HH:00", "HH:00", "HH:00"]
 
 Consider: work blocks best 9-12am, meetings mid-day, personal/exercise evening.`;
@@ -234,8 +218,21 @@ Consider: work blocks best 9-12am, meetings mid-day, personal/exercise evening.`
 
 function parseInsightsResponse(text, blocks, stats) {
   try {
+    // Clean the text - remove markdown code blocks if present
+    let cleanText = text.trim();
+    if (cleanText.startsWith('```json')) {
+      cleanText = cleanText.slice(7);
+    }
+    if (cleanText.startsWith('```')) {
+      cleanText = cleanText.slice(3);
+    }
+    if (cleanText.endsWith('```')) {
+      cleanText = cleanText.slice(0, -3);
+    }
+    cleanText = cleanText.trim();
+    
     // Try to extract JSON from the response
-    const jsonMatch = text.match(/\{[\s\S]*\}/);
+    const jsonMatch = cleanText.match(/\{[\s\S]*\}/);
     if (jsonMatch) {
       const parsed = JSON.parse(jsonMatch[0]);
       return {
@@ -247,19 +244,31 @@ function parseInsightsResponse(text, blocks, stats) {
       };
     }
   } catch (e) {
-    // JSON parsing failed, use fallback
+    console.warn('Failed to parse AI response:', e.message);
   }
   return getFallbackInsights(blocks, stats);
 }
 
 function parseSchedulingSuggestions(text) {
   try {
-    const jsonMatch = text.match(/\[[\s\S]*\]/);
+    let cleanText = text.trim();
+    if (cleanText.startsWith('```json')) {
+      cleanText = cleanText.slice(7);
+    }
+    if (cleanText.startsWith('```')) {
+      cleanText = cleanText.slice(3);
+    }
+    if (cleanText.endsWith('```')) {
+      cleanText = cleanText.slice(0, -3);
+    }
+    cleanText = cleanText.trim();
+    
+    const jsonMatch = cleanText.match(/\[[\s\S]*\]/);
     if (jsonMatch) {
       return JSON.parse(jsonMatch[0]);
     }
   } catch (e) {
-    // Parsing failed
+    console.warn('Failed to parse scheduling suggestions:', e.message);
   }
   return null;
 }
