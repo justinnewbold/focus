@@ -217,7 +217,7 @@ export const db = {
         .from('time_blocks')
         .insert({ ...block, user_id: userId })
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
       return { data, error: null };
@@ -240,7 +240,7 @@ export const db = {
         .eq('id', id)
         .eq('user_id', user.id)
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) throw error;
       return { data, error: null };
@@ -299,7 +299,7 @@ export const db = {
         .select('*')
         .eq('user_id', userId)
         .eq('date', today)
-        .single();
+        .maybeSingle();
 
       if (existing) {
         const breakdown = existing.categories_breakdown || {};
@@ -353,7 +353,7 @@ export const db = {
         .from('user_preferences')
         .select('*')
         .eq('user_id', userId)
-        .single();
+        .maybeSingle();
 
       // PGRST116 means no rows found - return defaults
       if (error && error.code !== 'PGRST116') {
@@ -390,3 +390,4 @@ export const db = {
     }
   }
 };
+
