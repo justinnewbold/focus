@@ -15,7 +15,7 @@ const ConfirmDialog = memo(({
   onCancel
 }) => {
   const dialogRef = useRef(null);
-  const confirmButtonRef = useRef(null);
+  const cancelButtonRef = useRef(null);
 
   // Focus management and escape key
   useEffect(() => {
@@ -28,7 +28,7 @@ const ConfirmDialog = memo(({
     };
 
     // Focus the cancel button by default (safer option)
-    confirmButtonRef.current?.focus();
+    cancelButtonRef.current?.focus();
     window.addEventListener('keydown', handleKeyDown);
 
     return () => {
@@ -141,6 +141,7 @@ const ConfirmDialog = memo(({
 
         <div style={{ display: 'flex', gap: '12px' }}>
           <button
+            ref={cancelButtonRef}
             onClick={onCancel}
             style={{
               flex: 1,
@@ -158,7 +159,6 @@ const ConfirmDialog = memo(({
             {cancelLabel}
           </button>
           <button
-            ref={confirmButtonRef}
             onClick={onConfirm}
             style={{
               flex: 1,

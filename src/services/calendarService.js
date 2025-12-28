@@ -126,10 +126,12 @@ export async function fetchGoogleCalendarEvents(calendarId = 'primary', timeMin,
 export async function createGoogleCalendarEvent(block, calendarId = 'primary') {
   try {
     const gapi = await initGoogleCalendar();
-    
-    const startDateTime = new Date(`${block.date}T${String(block.hour).padStart(2, '0')}:${String(block.startMinute || 0).padStart(2, '0')}:00`);
-    const endDateTime = new Date(startDateTime.getTime() + (block.duration || 25) * 60 * 1000);
-    
+
+    const startMinute = block.start_minute || block.startMinute || 0;
+    const durationMinutes = block.duration_minutes || block.duration || 60;
+    const startDateTime = new Date(`${block.date}T${String(block.hour).padStart(2, '0')}:${String(startMinute).padStart(2, '0')}:00`);
+    const endDateTime = new Date(startDateTime.getTime() + durationMinutes * 60 * 1000);
+
     const event = {
       summary: block.title,
       description: `Category: ${block.category}\n\nCreated by FOCUS app`,
@@ -167,9 +169,11 @@ export async function updateGoogleCalendarEvent(googleEventId, block, calendarId
   try {
     const gapi = await initGoogleCalendar();
     
-    const startDateTime = new Date(`${block.date}T${String(block.hour).padStart(2, '0')}:${String(block.startMinute || 0).padStart(2, '0')}:00`);
-    const endDateTime = new Date(startDateTime.getTime() + (block.duration || 25) * 60 * 1000);
-    
+    const startMinute = block.start_minute || block.startMinute || 0;
+    const durationMinutes = block.duration_minutes || block.duration || 60;
+    const startDateTime = new Date(`${block.date}T${String(block.hour).padStart(2, '0')}:${String(startMinute).padStart(2, '0')}:00`);
+    const endDateTime = new Date(startDateTime.getTime() + durationMinutes * 60 * 1000);
+
     const event = {
       summary: block.title,
       description: `Category: ${block.category}\n\nUpdated by FOCUS app`,
@@ -267,8 +271,8 @@ export async function importGoogleEventsAsBlocks(timeMin, timeMax) {
         category: guessCategoryFromTitle(event.title),
         date: startDate.toISOString().split('T')[0],
         hour: startDate.getHours(),
-        startMinute: startDate.getMinutes(),
-        duration: calculateDuration(event.start, event.end),
+        start_minute: startDate.getMinutes(),
+        duration_minutes: calculateDuration(event.start, event.end),
         description: event.description,
         googleEventId: event.id,
         source: 'google'

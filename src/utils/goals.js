@@ -142,10 +142,12 @@ export const calculateGoalProgress = (goal, blocks, stats, dateRange) => {
     }
 
     case GoalType.POMODOROS: {
-      current = stats.filter(s => {
+      // Ensure stats is an array before filtering
+      const statsArray = Array.isArray(stats) ? stats : [];
+      current = statsArray.filter(s => {
         const statDate = new Date(s.date);
         return statDate >= startDate && statDate <= endDate;
-      }).reduce((sum, s) => sum + (s.sessions_completed || 0), 0);
+      }).reduce((sum, s) => sum + (s.pomodoros_completed || s.sessions_completed || 0), 0);
       break;
     }
 
@@ -161,7 +163,7 @@ export const calculateGoalProgress = (goal, blocks, stats, dateRange) => {
   return {
     current,
     target: goal.target,
-    percentage: Math.min(100, Math.round((current / goal.target) * 100)),
+    percentage: goal.target > 0 ? Math.min(100, Math.round((current / goal.target) * 100)) : 0,
     completed: current >= goal.target
   };
 };

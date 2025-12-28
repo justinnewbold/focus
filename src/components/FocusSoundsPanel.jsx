@@ -1,12 +1,24 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 
 const FocusSoundsPanel = ({ onClose }) => {
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentSound, setCurrentSound] = useState(null);
   const [volume, setVolume] = useState(0.5);
-  const [audioContext, setAudioContext] = useState(null);
-  const [sourceNode, setSourceNode] = useState(null);
-  const [gainNode, setGainNode] = useState(null);
+  const audioContextRef = useRef(null);
+  const sourceNodeRef = useRef(null);
+  const gainNodeRef = useRef(null);
+
+  // Cleanup audio resources on unmount
+  useEffect(() => {
+    return () => {
+      if (sourceNodeRef.current) {
+        try { sourceNodeRef.current.stop(); } catch (e) {}
+      }
+      if (audioContextRef.current && audioContextRef.current.state !== 'closed') {
+        audioContextRef.current.close();
+      }
+    };
+  }, []);
 
   const sounds = [
     { id: 'brown-noise', name: 'Brown Noise', icon: '🌊', desc: 'Deep, soothing' },
@@ -44,8 +56,9 @@ const FocusSoundsPanel = ({ onClose }) => {
 
   const playSound = (soundId) => {
     // Stop current sound
-    if (sourceNode) {
-      try { sourceNode.stop(); } catch(e) {}
+    if (sourceNodeRef.current) {
+      try { sourceNodeRef.current.stop(); } catch(e) {}
+      sourceNodeRef.current = null;
     }
 
     if (currentSound === soundId && isPlaying) {
@@ -54,13 +67,21 @@ const FocusSoundsPanel = ({ onClose }) => {
       return;
     }
 
-    const ctx = audioContext || new (window.AudioContext || window.webkitAudioContext)();
-    setAudioContext(ctx);
+    // Reuse existing audio context or create new one
+    if (!audioContextRef.current || audioContextRef.current.state === 'closed') {
+      audioContextRef.current = new (window.AudioContext || window.webkitAudioContext)();
+    }
+    const ctx = audioContextRef.current;
+
+    // Resume context if suspended (required after user interaction)
+    if (ctx.state === 'suspended') {
+      ctx.resume();
+    }
 
     const gain = ctx.createGain();
     gain.gain.value = volume;
     gain.connect(ctx.destination);
-    setGainNode(gain);
+    gainNodeRef.current = gain;
 
     let source;
     if (['brown-noise', 'white-noise', 'pink-noise', 'rain', 'coffee-shop', 'ocean', 'forest'].includes(soundId)) {
@@ -97,11 +118,13 @@ const FocusSoundsPanel = ({ onClose }) => {
       
       oscL.start();
       oscR.start();
-      source = { stop: () => { oscL.stop(); oscR.stop(); } };
+      // Create a mock source object with stop method for binaural beats
+      source = { stop: () => { oscL.stop(); oscR.stop(); }, isBinaural: true };
     }
 
-    if (source && source.start) source.start();
-    setSourceNode(source);
+    // Only call start() on buffer sources, not binaural beat mock objects
+    if (source && source.start && !source.isBinaural) source.start();
+    sourceNodeRef.current = source;
     setCurrentSound(soundId);
     setIsPlaying(true);
   };
@@ -109,7 +132,7 @@ const FocusSoundsPanel = ({ onClose }) => {
   const handleVolumeChange = (e) => {
     const vol = parseFloat(e.target.value);
     setVolume(vol);
-    if (gainNode) gainNode.gain.value = vol;
+    if (gainNodeRef.current) gainNodeRef.current.gain.value = vol;
   };
 
   return (

@@ -25,7 +25,7 @@ const styles = {
 const categoryColors = { work: '#FF6B6B', meeting: '#9B59B6', break: '#2ECC71', personal: '#F1C40F', learning: '#3498DB', exercise: '#E67E22' };
 
 const GoalCard = ({ goal, progress, target }) => {
-  const percent = Math.min((progress / target) * 100, 100);
+  const percent = target > 0 ? Math.min((progress / target) * 100, 100) : 0;
   const achieved = percent >= 100;
   return (
     <div style={{ ...styles.goalCard, background: achieved ? 'rgba(78, 205, 196, 0.2)' : styles.goalCard.background }}>
@@ -163,12 +163,16 @@ export default function AdvancedAnalytics({ userId, stats = [], goals = [], onSa
   }, [stats]);
 
   const todayStats = stats.find(s => s.date === new Date().toISOString().split('T')[0]) || { pomodoros_completed: 0 };
-  const weekStats = stats.filter(s => {
-    const d = new Date(s.date);
+  const weekStats = useMemo(() => {
     const now = new Date();
-    const weekStart = new Date(now.setDate(now.getDate() - now.getDay()));
-    return d >= weekStart;
-  }).reduce((sum, s) => sum + (s.pomodoros_completed || 0), 0);
+    const dayOfWeek = now.getDay();
+    const weekStart = new Date(now.getTime() - dayOfWeek * 24 * 60 * 60 * 1000);
+    weekStart.setHours(0, 0, 0, 0);
+    return stats.filter(s => {
+      const d = new Date(s.date);
+      return d >= weekStart;
+    }).reduce((sum, s) => sum + (s.pomodoros_completed || 0), 0);
+  }, [stats]);
 
   return (
     <div style={styles.container}>
