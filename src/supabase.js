@@ -25,8 +25,24 @@ export const supabase = createClient(supabaseUrl || '', supabaseAnonKey || '', {
     params: {
       eventsPerSecond: 10
     }
+  },
+  global: {
+    headers: {
+      'Accept': 'application/json'
+    }
   }
 });
+
+// Default preferences for fallback
+const DEFAULT_PREFERENCES = {
+  work_duration: 25,
+  short_break_duration: 5,
+  long_break_duration: 15,
+  daily_pomodoro_goal: 8,
+  theme: 'dark',
+  sound_enabled: true,
+  notifications_enabled: true
+};
 
 // Auth helpers
 export const auth = {
@@ -38,7 +54,8 @@ export const auth = {
         queryParams: {
           access_type: 'offline',
           prompt: 'consent'
-        }
+        },
+        scopes: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events'
       }
     });
   },
@@ -60,9 +77,9 @@ export const auth = {
   }
 };
 
-// ============================================
+// ===========================================
 // REAL-TIME SYNC HELPERS
-// ============================================
+// ===========================================
 
 export const realtimeSync = {
   subscriptions: new Map(),
@@ -155,6 +172,24 @@ export const realtimeSync = {
   }
 };
 
+// Helper to format errors consistently
+const formatError = (error) => {
+  if (error instanceof TypeError && error.message === 'Failed to fetch') {
+    return {
+      message: 'Network error - please check your connection',
+      details: error.toString(),
+      hint: 'This may be a temporary network issue. Try refreshing the page.',
+      code: 'NETWORK_ERROR'
+    };
+  }
+  return {
+    message: error?.message || 'Unknown error',
+    details: error?.toString() || '',
+    hint: error?.hint || '',
+    code: error?.code || ''
+  };
+};
+
 // Database helpers with improved error handling
 // FIXED: Function signatures now match how they're called from App.jsx
 export const db = {
@@ -170,7 +205,7 @@ export const db = {
       if (error) throw error;
       return data || [];
     } catch (error) {
-      console.error('Error fetching time blocks:', error);
+      console.error('Error fetching time blocks:', formatError(error));
       throw error;
     }
   },
@@ -187,7 +222,7 @@ export const db = {
       if (error) throw error;
       return { data, error: null };
     } catch (error) {
-      console.error('Error creating time block:', error);
+      console.error('Error creating time block:', formatError(error));
       return { data: null, error };
     }
   },
@@ -210,7 +245,7 @@ export const db = {
       if (error) throw error;
       return { data, error: null };
     } catch (error) {
-      console.error('Error updating time block:', error);
+      console.error('Error updating time block:', formatError(error));
       return { data: null, error };
     }
   },
@@ -231,7 +266,7 @@ export const db = {
       if (error) throw error;
       return { error: null };
     } catch (error) {
-      console.error('Error deleting time block:', error);
+      console.error('Error deleting time block:', formatError(error));
       return { error };
     }
   },
@@ -249,7 +284,7 @@ export const db = {
       if (error) throw error;
       return data || [];
     } catch (error) {
-      console.error('Error fetching pomodoro stats:', error);
+      console.error('Error fetching pomodoro stats:', formatError(error));
       return [];
     }
   },
@@ -295,7 +330,7 @@ export const db = {
 
       return { error: null };
     } catch (error) {
-      console.error('Error updating pomodoro stats:', error);
+      console.error('Error updating pomodoro stats:', formatError(error));
       return { error };
     }
   },
@@ -306,13 +341,13 @@ export const db = {
     try {
       return await this.updatePomodoroStats(userId, 1, session?.category || 'work');
     } catch (error) {
-      console.error('Error saving pomodoro stat:', error);
+      console.error('Error saving pomodoro stat:', formatError(error));
       return { error };
     }
   },
 
   async getPreferences(userId) {
-    if (!userId) return null;
+    if (!userId) return DEFAULT_PREFERENCES;
     try {
       const { data, error } = await supabase
         .from('user_preferences')
@@ -320,11 +355,18 @@ export const db = {
         .eq('user_id', userId)
         .single();
 
-      if (error && error.code !== 'PGRST116') throw error;
-      return data;
+      // PGRST116 means no rows found - return defaults
+      if (error && error.code !== 'PGRST116') {
+        console.error('Error fetching preferences:', formatError(error));
+        // Return defaults on error instead of null
+        return DEFAULT_PREFERENCES;
+      }
+      
+      return data || DEFAULT_PREFERENCES;
     } catch (error) {
-      console.error('Error fetching preferences:', error);
-      return null;
+      console.error('Error fetching preferences:', formatError(error));
+      // Return defaults on network error
+      return DEFAULT_PREFERENCES;
     }
   },
 
@@ -343,7 +385,7 @@ export const db = {
       if (error) throw error;
       return { error: null };
     } catch (error) {
-      console.error('Error upserting preferences:', error);
+      console.error('Error upserting preferences:', formatError(error));
       return { error };
     }
   }
