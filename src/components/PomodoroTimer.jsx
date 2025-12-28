@@ -118,7 +118,7 @@ const PomodoroTimer = memo(forwardRef(({ onComplete, currentTask, preferences, o
     };
   }, [isRunning, endTime, mode, onComplete, startAlarm]);
 
-  const toggleTimer = () => {
+  const toggleTimer = useCallback(() => {
     if (isAlarming) return;
     if (isRunning) {
       setIsRunning(false);
@@ -132,16 +132,16 @@ const PomodoroTimer = memo(forwardRef(({ onComplete, currentTask, preferences, o
       timerStorage.save({ isRunning: true, endTime: newEndTime, mode, timeLeft });
     }
     onToggle?.(!isRunning);
-  };
+  }, [isAlarming, isRunning, timeLeft, mode, playSound, onToggle]);
 
-  const acknowledgeAlarm = () => {
+  const acknowledgeAlarm = useCallback(() => {
     stopAlarm();
     setIsAlarming(false);
     setTimeLeft(durations[mode]);
     document.title = 'FOCUS';
-  };
+  }, [stopAlarm, durations, mode]);
 
-  const addFiveMinutes = () => {
+  const addFiveMinutes = useCallback(() => {
     stopAlarm();
     setIsAlarming(false);
     const newTime = 5 * 60;
@@ -150,9 +150,9 @@ const PomodoroTimer = memo(forwardRef(({ onComplete, currentTask, preferences, o
     setEndTime(newEndTime);
     setIsRunning(true);
     timerStorage.save({ isRunning: true, endTime: newEndTime, mode, timeLeft: newTime });
-  };
+  }, [stopAlarm, mode]);
 
-  const resetTimer = () => {
+  const resetTimer = useCallback(() => {
     stopAlarm();
     setIsAlarming(false);
     setIsRunning(false);
@@ -161,16 +161,16 @@ const PomodoroTimer = memo(forwardRef(({ onComplete, currentTask, preferences, o
     timerStorage.clear();
     document.title = 'FOCUS';
     onReset?.();
-  };
+  }, [stopAlarm, durations, mode, onReset]);
 
-  const switchMode = (newMode) => {
+  const switchMode = useCallback((newMode) => {
     if (isRunning) return;
     stopAlarm();
     setIsAlarming(false);
     setMode(newMode);
     setTimeLeft(durations[newMode]);
     document.title = 'FOCUS';
-  };
+  }, [isRunning, stopAlarm, durations]);
 
   // Expose methods for keyboard shortcuts via ref
   useImperativeHandle(ref, () => ({
