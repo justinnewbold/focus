@@ -55,53 +55,186 @@ import { requestNotificationPermission } from './utils/notifications';
 // Constants
 import { HOURS_RANGE } from './constants';
 
-// Global styles
-const globalStyles = `
-  @keyframes pulse {
-    0%, 100% { opacity: 1; }
-    50% { opacity: 0.5; }
+// Import iOS styles
+import './styles/ios-native.css';
+
+// iOS Native Global Styles
+const iosGlobalStyles = `
+  /* ===== iOS ROOT VARIABLES ===== */
+  :root {
+    --ios-primary: #007AFF;
+    --ios-primary-light: #5AC8FA;
+    --ios-blue: #007AFF;
+    --ios-green: #34C759;
+    --ios-indigo: #5856D6;
+    --ios-orange: #FF9500;
+    --ios-pink: #FF2D55;
+    --ios-purple: #AF52DE;
+    --ios-red: #FF3B30;
+    --ios-teal: #5AC8FA;
+    --ios-yellow: #FFCC00;
+    --ios-gray: #8E8E93;
+    --ios-gray-2: #AEAEB2;
+    --ios-gray-3: #C7C7CC;
+    --ios-gray-4: #D1D1D6;
+    --ios-gray-5: #E5E5EA;
+    --ios-gray-6: #F2F2F7;
+    --ios-bg: #F2F2F7;
+    --ios-bg-secondary: #FFFFFF;
+    --ios-card-bg: #FFFFFF;
+    --ios-label: #000000;
+    --ios-label-secondary: rgba(60, 60, 67, 0.6);
+    --ios-label-tertiary: rgba(60, 60, 67, 0.3);
+    --ios-separator: rgba(60, 60, 67, 0.29);
+    --ios-fill: rgba(120, 120, 128, 0.2);
+    --ios-font: -apple-system, BlinkMacSystemFont, "SF Pro Display", "SF Pro Text", "Helvetica Neue", Arial, sans-serif;
+    --safe-area-top: env(safe-area-inset-top, 0px);
+    --safe-area-bottom: env(safe-area-inset-bottom, 0px);
+    --safe-area-left: env(safe-area-inset-left, 0px);
+    --safe-area-right: env(safe-area-inset-right, 0px);
   }
 
+  [data-theme="dark"] {
+    --ios-primary: #0A84FF;
+    --ios-primary-light: #64D2FF;
+    --ios-blue: #0A84FF;
+    --ios-green: #30D158;
+    --ios-indigo: #5E5CE6;
+    --ios-orange: #FF9F0A;
+    --ios-pink: #FF375F;
+    --ios-purple: #BF5AF2;
+    --ios-red: #FF453A;
+    --ios-teal: #64D2FF;
+    --ios-yellow: #FFD60A;
+    --ios-gray: #8E8E93;
+    --ios-gray-2: #636366;
+    --ios-gray-3: #48484A;
+    --ios-gray-4: #3A3A3C;
+    --ios-gray-5: #2C2C2E;
+    --ios-gray-6: #1C1C1E;
+    --ios-bg: #000000;
+    --ios-bg-secondary: #1C1C1E;
+    --ios-card-bg: #1C1C1E;
+    --ios-label: #FFFFFF;
+    --ios-label-secondary: rgba(235, 235, 245, 0.6);
+    --ios-label-tertiary: rgba(235, 235, 245, 0.3);
+    --ios-separator: rgba(84, 84, 88, 0.6);
+    --ios-fill: rgba(120, 120, 128, 0.36);
+  }
+
+  /* ===== BASE STYLES ===== */
+  *, *::before, *::after {
+    box-sizing: border-box;
+    -webkit-tap-highlight-color: transparent;
+  }
+
+  html {
+    -webkit-text-size-adjust: 100%;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  body {
+    margin: 0;
+    padding: 0;
+    font-family: var(--ios-font);
+    font-size: 17px;
+    line-height: 1.47;
+    letter-spacing: -0.022em;
+    background: var(--ios-bg);
+    color: var(--ios-label);
+    min-height: 100vh;
+    min-height: -webkit-fill-available;
+    overflow-x: hidden;
+  }
+
+  /* ===== iOS ANIMATIONS ===== */
+  @keyframes ios-fade-in {
+    from { opacity: 0; }
+    to { opacity: 1; }
+  }
+
+  @keyframes ios-slide-up {
+    from { transform: translateY(100%); opacity: 0; }
+    to { transform: translateY(0); opacity: 1; }
+  }
+
+  @keyframes ios-scale-in {
+    from { transform: scale(1.05); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+
+  @keyframes ios-pulse {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0.6; }
+  }
+
+  @keyframes ios-bounce {
+    0% { transform: scale(1); }
+    50% { transform: scale(0.97); }
+    100% { transform: scale(1); }
+  }
+
+  /* ===== RESPONSIVE STYLES ===== */
   @media (max-width: 900px) {
-    .main-grid { grid-template-columns: 1fr !important; }
-    .right-column { order: -1; }
+    .ios-main-grid { 
+      grid-template-columns: 1fr !important; 
+    }
+    .ios-right-column { 
+      order: -1; 
+    }
   }
 
   @media (max-width: 600px) {
-    .app-header {
-      flex-direction: column !important;
-      gap: 12px !important;
+    .ios-navbar {
       padding: 12px 16px !important;
+      padding-top: calc(12px + var(--safe-area-top)) !important;
     }
-    .header-left, .header-right {
-      width: 100% !important;
-      justify-content: center !important;
+    .ios-navbar-title {
+      font-size: 17px !important;
     }
-    .main-content { padding: 12px !important; }
-    .drag-badge { display: none !important; }
-    .analytics-grid { gap: 8px !important; }
-    .analytics-card { padding: 10px 6px !important; }
-    .analytics-value { font-size: 20px !important; }
-    .analytics-label { font-size: 7px !important; }
-    .week-grid-container { padding: 12px !important; }
-    .week-grid {
-      grid-template-columns: 40px repeat(7, minmax(32px, 1fr)) !important;
-      gap: 3px !important;
-      min-width: unset !important;
+    .ios-main-content {
+      padding: 12px !important;
     }
-    .day-header { padding: 4px 2px !important; }
-    .day-name { font-size: 8px !important; }
-    .day-number { font-size: 11px !important; }
-    .time-label { font-size: 7px !important; padding-right: 2px !important; }
-    .timer-container { padding: 16px !important; }
-    .timer-mode-btn { padding: 8px 10px !important; font-size: 9px !important; }
-    .view-controls { flex-direction: column !important; gap: 8px !important; }
-    .view-toggle button { padding: 6px 12px !important; font-size: 11px !important; }
+    .ios-card {
+      margin: 8px !important;
+      border-radius: 12px !important;
+    }
+    .ios-segmented-item {
+      padding: 8px 12px !important;
+      font-size: 13px !important;
+    }
+    .ios-week-grid {
+      grid-template-columns: 44px repeat(7, minmax(36px, 1fr)) !important;
+      gap: 4px !important;
+    }
+    .ios-day-name {
+      font-size: 10px !important;
+    }
+    .ios-day-number {
+      font-size: 14px !important;
+    }
+    .ios-time-label {
+      font-size: 10px !important;
+    }
+    .ios-timer-card {
+      padding: 16px !important;
+    }
   }
 `;
 
+// iOS Block Category Colors
+const iosBlockColors = {
+  work: { bg: 'rgba(0, 122, 255, 0.12)', border: '#007AFF', text: '#007AFF' },
+  meeting: { bg: 'rgba(255, 149, 0, 0.12)', border: '#FF9500', text: '#FF9500' },
+  break: { bg: 'rgba(52, 199, 89, 0.12)', border: '#34C759', text: '#34C759' },
+  personal: { bg: 'rgba(175, 82, 222, 0.12)', border: '#AF52DE', text: '#AF52DE' },
+  learning: { bg: 'rgba(88, 86, 214, 0.12)', border: '#5856D6', text: '#5856D6' },
+  exercise: { bg: 'rgba(255, 45, 85, 0.12)', border: '#FF2D55', text: '#FF2D55' },
+};
+
 /**
- * Main Application Component
+ * Main Application Component - iOS Native Design
  */
 function App() {
   // State
@@ -125,18 +258,20 @@ function App() {
   const [showQuickAdd, setShowQuickAdd] = useState(false);
   const [showEnhancedAnalytics, setShowEnhancedAnalytics] = useState(false);
   const [showAIPanel, setShowAIPanel] = useState(true);
+  const [activeTab, setActiveTab] = useState('schedule');
 
   // Refs
   const timerRef = useRef(null);
+  const isLoadingRef = useRef(false);
 
   // Toast notifications
   const toast = useToast();
 
-  // Undo stack for reversible operations
+  // Undo stack
   const undoStack = useUndoStack({ maxHistory: 20 });
   const [undoToast, setUndoToast] = useState({ visible: false, message: '', block: null });
 
-  // Initialize theme on mount
+  // Initialize theme
   useEffect(() => {
     initializeTheme();
   }, []);
@@ -148,7 +283,7 @@ function App() {
   const hours = useMemo(() => generateHoursArray(HOURS_RANGE.start, HOURS_RANGE.count), []);
   const activeBlock = useMemo(() => blocks.find(b => b.id === activeBlockId), [blocks, activeBlockId]);
 
-  // Request notification permission on mount
+  // Request notification permission
   useEffect(() => {
     requestNotificationPermission();
   }, []);
@@ -178,7 +313,7 @@ function App() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Network status subscription
+  // Network status
   useEffect(() => {
     const unsubscribe = subscribeToNetworkStatus(
       () => {
@@ -188,24 +323,16 @@ function App() {
       },
       () => {
         setNetworkOnline(false);
-        toast.warning('You are offline. Changes will sync when reconnected.');
+        toast.warning('You are offline');
       }
     );
     return unsubscribe;
-  }, []);  // No deps - stable callbacks
+  }, []);
 
-  // Load user data with retry and offline cache support
-  // Ref to prevent simultaneous data loading
-  const isLoadingRef = useRef(false);
-  
+  // Load data
   const loadData = useCallback(async () => {
     if (!user) return;
-    
-    // Prevent simultaneous loads
-    if (isLoadingRef.current) {
-      console.log('Load already in progress, skipping...');
-      return;
-    }
+    if (isLoadingRef.current) return;
     
     isLoadingRef.current = true;
     setIsSyncing(true);
@@ -226,7 +353,6 @@ function App() {
       }
     } catch (error) {
       console.error('Error loading data:', error);
-      // Only show error once, don't retry automatically
       const cached = getCachedBlocks();
       if (cached?.blocks) {
         setBlocks(cached.blocks);
@@ -238,20 +364,15 @@ function App() {
   }, [user]);
 
   useEffect(() => {
-    if (user) {
-      loadData();
-    }
+    if (user) loadData();
   }, [user]);
 
-  // Set up real-time subscriptions
+  // Real-time subscriptions
   useEffect(() => {
     if (!user) return;
 
     const handleInsert = (newBlock) => {
-      setBlocks(prev => {
-        if (prev.some(b => b.id === newBlock.id)) return prev;
-        return [...prev, newBlock];
-      });
+      setBlocks(prev => prev.some(b => b.id === newBlock.id) ? prev : [...prev, newBlock]);
     };
 
     const handleUpdate = (updatedBlock) => {
@@ -263,26 +384,21 @@ function App() {
     };
 
     realtimeSync.subscribeToBlocks(user.id, handleInsert, handleUpdate, handleDelete);
-    realtimeSync.subscribeToStats(user.id, () => {} /* stats update handled by subscription */);
+    realtimeSync.subscribeToStats(user.id, () => {});
 
-    return () => {
-      realtimeSync.unsubscribeAll();
-    };
+    return () => realtimeSync.unsubscribeAll();
   }, [user]);
 
   // CRUD Operations
   const handleAddBlock = useCallback(async (blockData) => {
     if (!user) return;
-
     setIsSyncing(true);
     try {
       const { data: newBlock, error } = await db.createTimeBlock(user.id, blockData);
-
       if (error) {
         toast.error('Failed to create block');
         return;
       }
-
       setBlocks(prev => [...prev, newBlock]);
       toast.success('Block added!');
       setShowModal(false);
@@ -296,17 +412,14 @@ function App() {
 
   const handleUpdateBlock = useCallback(async (blockId, updates) => {
     if (!user) return;
-
     setIsSyncing(true);
     try {
-      const { error } = await db.updateTimeBlock(blockId, updates);
-
+      const { data: updatedBlock, error } = await db.updateTimeBlock(blockId, updates);
       if (error) {
         toast.error('Failed to update block');
         return;
       }
-
-      setBlocks(prev => prev.map(b => b.id === blockId ? { ...b, ...updates } : b));
+      setBlocks(prev => prev.map(b => b.id === blockId ? updatedBlock : b));
       toast.success('Block updated!');
       setEditingBlock(null);
     } catch (error) {
@@ -317,146 +430,86 @@ function App() {
     }
   }, [user, toast]);
 
-  // Handle drag and drop of blocks
-  const handleBlockDrop = useCallback(async (block, target) => {
-    if (!user || !block || !target) return;
-    
-    const updates = {
-      date: target.date,
-      hour: target.hour,
-      start_minute: 0
-    };
-    
-    try {
-      const { error } = await db.updateTimeBlock(block.id, updates);
-      if (error) {
-        toast.error("Failed to move block");
-        return;
-      }
-      
-      setBlocks(prev => prev.map(b => 
-        b.id === block.id ? { ...b, ...updates } : b
-      ));
-      toast.success("Block moved!");
-    } catch (error) {
-      console.error("Error moving block:", error);
-      toast.error("Failed to move block");
-    }
-  }, [user, toast]);
-
   const handleDeleteBlock = useCallback(async (blockId) => {
     if (!user) return;
-
-    // Store the block before deleting for undo
     const blockToDelete = blocks.find(b => b.id === blockId);
     if (!blockToDelete) return;
 
     setIsSyncing(true);
     try {
       const { error } = await db.deleteTimeBlock(blockId);
-
       if (error) {
         toast.error('Failed to delete block');
         return;
       }
-
-      // Remove from state
       setBlocks(prev => prev.filter(b => b.id !== blockId));
-      setConfirmDialog({ isOpen: false, block: null });
-
-      // Show undo toast instead of success toast
-      setUndoToast({
-        visible: true,
-        message: `"${blockToDelete.title}" deleted`,
-        block: blockToDelete
-      });
-
-      // Store in deleted blocks for recovery
       deletedBlocksStorage.save(blockToDelete);
-
+      setUndoToast({ visible: true, message: `"${blockToDelete.title}" deleted`, block: blockToDelete });
+      setConfirmDialog({ isOpen: false, block: null });
     } catch (error) {
       console.error('Error deleting block:', error);
       toast.error('Failed to delete block');
     } finally {
       setIsSyncing(false);
     }
-  }, [user, toast, blocks]);
+  }, [user, blocks, toast]);
 
-  // Handle undo delete
   const handleUndoDelete = useCallback(async () => {
-    if (!user || !undoToast.block) return;
+    const deletedBlock = deletedBlocksStorage.get();
+    if (!deletedBlock || !user) return;
 
-    setIsSyncing(true);
     try {
-      const blockToRestore = undoToast.block;
-
-      // Re-create the block in the database
-      const { data: restoredBlock, error } = await db.createTimeBlock(user.id, {
-        title: blockToRestore.title,
-        category: blockToRestore.category,
-        date: blockToRestore.date,
-        hour: blockToRestore.hour,
-        start_minute: blockToRestore.start_minute,
-        duration_minutes: blockToRestore.duration_minutes,
-        timer_duration: blockToRestore.timer_duration
-      });
-
-      if (error) {
-        toast.error('Failed to restore block');
-        return;
+      const { id, ...blockData } = deletedBlock;
+      const { data: restoredBlock, error } = await db.createTimeBlock(user.id, blockData);
+      if (!error) {
+        setBlocks(prev => [...prev, restoredBlock]);
+        toast.success('Block restored!');
+        deletedBlocksStorage.clear();
       }
-
-      // Add back to state
-      setBlocks(prev => [...prev, restoredBlock]);
-      toast.success('Block restored!');
-
-      // Remove from deleted blocks storage
-      deletedBlocksStorage.remove(blockToRestore.id);
-
     } catch (error) {
       console.error('Error restoring block:', error);
-      toast.error('Failed to restore block');
-    } finally {
-      setIsSyncing(false);
-      setUndoToast({ visible: false, message: '', block: null });
     }
-  }, [user, undoToast.block, toast]);
+    setUndoToast({ visible: false, message: '', block: null });
+  }, [user, toast]);
 
-  // Handle importing blocks from Google Calendar
-  const handleImportBlocks = useCallback(async (importedBlocks) => {
+  const handleImportBlocks = useCallback(async (newBlocks) => {
     if (!user) return;
-
     setIsSyncing(true);
     try {
-      for (const block of importedBlocks) {
-        await db.createTimeBlock(user.id, block);
-      }
-      await loadData();
-      toast.success(`Imported ${importedBlocks.length} blocks!`);
+      const created = await Promise.all(
+        newBlocks.map(block => db.createTimeBlock(user.id, block))
+      );
+      const validBlocks = created.filter(r => r.data).map(r => r.data);
+      setBlocks(prev => [...prev, ...validBlocks]);
+      toast.success(`Imported ${validBlocks.length} blocks!`);
     } catch (error) {
       console.error('Error importing blocks:', error);
-      toast.error('Failed to import some blocks');
+      toast.error('Failed to import blocks');
     } finally {
       setIsSyncing(false);
     }
-  }, [user, loadData, toast]);
+  }, [user, toast]);
 
-  // Keyboard shortcuts
-  useKeyboardShortcuts({
-    newBlock: () => setShowModal(true),
-    quickAdd: () => setShowQuickAdd(true),
-    focusMode: () => setShowFocusMode(true),
-    analytics: () => setShowEnhancedAnalytics(true),
-    toggleTimer: () => timerRef.current?.toggleTimer(),
-    resetTimer: () => timerRef.current?.resetTimer(),
-    closeModal: () => {
-      setShowModal(false);
-      setEditingBlock(null);
-      setShowFocusMode(false);
-      setShowQuickAdd(false);
-      setShowEnhancedAnalytics(false);
+  const handleExport = useCallback((format) => {
+    if (format === 'csv') {
+      exportBlocksCSV(blocks);
+    } else if (format === 'json') {
+      exportBlocksJSON(blocks);
     }
-  });
+    setShowExportMenu(false);
+    toast.success(`Exported as ${format.toUpperCase()}`);
+  }, [blocks, toast]);
+
+  const handleSignOut = useCallback(async () => {
+    try {
+      await auth.signOut();
+      setUser(null);
+      setBlocks([]);
+      setStats([]);
+    } catch (error) {
+      console.error('Sign out error:', error);
+    }
+  }, []);
 
   // Loading state
   if (isLoading) {
@@ -470,325 +523,314 @@ function App() {
 
   return (
     <ErrorBoundary>
-      <DragProvider onDrop={handleBlockDrop}>
-        <style>{globalStyles}</style>
-        <div style={{
+      <DragProvider
+        blocks={blocks}
+        onBlockMove={async (blockId, newDate, newHour) => {
+          const block = blocks.find(b => b.id === blockId);
+          if (block) {
+            await handleUpdateBlock(blockId, { date: newDate, hour: newHour });
+          }
+        }}
+      >
+        <style>{iosGlobalStyles}</style>
+        
+        <div className="ios-app" style={{
           minHeight: '100vh',
-          background: 'var(--bg-primary, #f8fafc)'
+          minHeight: '-webkit-fill-available',
+          background: 'var(--ios-bg)',
+          paddingBottom: 'calc(80px + var(--safe-area-bottom))',
         }}>
-          {/* Header */}
-          <header className="app-header" style={{
-            display: 'flex',
-            justifyContent: 'space-between',
-            alignItems: 'center',
-            padding: '16px 24px',
-            background: 'var(--bg-secondary, white)',
-            borderBottom: '1px solid var(--border-color, #e2e8f0)',
+          
+          {/* iOS Navigation Bar */}
+          <header style={{
             position: 'sticky',
             top: 0,
-            zIndex: 100
+            zIndex: 100,
+            background: 'rgba(242, 242, 247, 0.72)',
+            backdropFilter: 'blur(20px) saturate(180%)',
+            WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+            borderBottom: '0.5px solid var(--ios-separator)',
+            padding: '12px 16px',
+            paddingTop: 'calc(12px + var(--safe-area-top))',
           }}>
-            <div className="header-left" style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-              <h1 style={{
-                margin: 0,
-                fontSize: '24px',
-                fontWeight: '700',
-                background: 'linear-gradient(135deg, #FF6B6B 0%, #4ECDC4 100%)',
-                WebkitBackgroundClip: 'text',
-                WebkitTextFillColor: 'transparent'
-              }}>
-                FOCUS
-              </h1>
-              <SyncStatus isSyncing={isSyncing} isOnline={networkOnline} />
-            </div>
-
-            <div className="header-right" style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <button
-                onClick={() => setShowEnhancedAnalytics(true)}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: '8px',
-                  border: 'none',
-                  background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
-                  color: 'white',
-                  fontSize: '13px',
-                  fontWeight: '500',
-                  cursor: 'pointer',
+            <div className="ios-navbar" style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              maxWidth: '1400px',
+              margin: '0 auto',
+            }}>
+              {/* Left: Logo & Title */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '10px',
+                  background: 'linear-gradient(135deg, var(--ios-blue), var(--ios-indigo))',
                   display: 'flex',
                   alignItems: 'center',
-                  gap: '6px'
-                }}
-              >
-                📊 Analytics
-              </button>
-              <ThemeSwitcher />
-              <button
-                onClick={() => auth.signOut()}
-                style={{
-                  padding: '8px 16px',
-                  borderRadius: '8px',
-                  border: '1px solid var(--border-color, #e2e8f0)',
-                  background: 'transparent',
-                  color: 'var(--text-secondary, #64748b)',
-                  fontSize: '13px',
-                  cursor: 'pointer'
-                }}
-              >
-                Sign Out
-              </button>
+                  justifyContent: 'center',
+                  fontSize: '18px',
+                  boxShadow: '0 2px 8px rgba(0, 122, 255, 0.3)',
+                }}>
+                  🎯
+                </div>
+                <div>
+                  <h1 className="ios-navbar-title" style={{
+                    fontSize: '22px',
+                    fontWeight: '700',
+                    margin: 0,
+                    color: 'var(--ios-label)',
+                    letterSpacing: '-0.5px',
+                  }}>
+                    Focus
+                  </h1>
+                </div>
+              </div>
+
+              {/* Center: View Mode Segmented Control */}
+              <div style={{
+                display: 'flex',
+                background: 'var(--ios-fill)',
+                borderRadius: '9px',
+                padding: '2px',
+              }}>
+                {['day', 'week'].map(mode => (
+                  <button
+                    key={mode}
+                    onClick={() => setViewMode(mode)}
+                    className="ios-segmented-item"
+                    style={{
+                      padding: '8px 20px',
+                      fontSize: '13px',
+                      fontWeight: '500',
+                      fontFamily: 'var(--ios-font)',
+                      border: 'none',
+                      borderRadius: '7px',
+                      cursor: 'pointer',
+                      transition: 'all 0.2s ease',
+                      background: viewMode === mode ? 'var(--ios-card-bg)' : 'transparent',
+                      color: 'var(--ios-label)',
+                      boxShadow: viewMode === mode ? '0 1px 4px rgba(0,0,0,0.08)' : 'none',
+                      textTransform: 'capitalize',
+                    }}
+                  >
+                    {mode}
+                  </button>
+                ))}
+              </div>
+
+              {/* Right: Actions */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                {/* Quick Add Button */}
+                <button
+                  onClick={() => setShowQuickAdd(true)}
+                  style={{
+                    width: '36px',
+                    height: '36px',
+                    borderRadius: '50%',
+                    border: 'none',
+                    background: 'var(--ios-primary)',
+                    color: '#fff',
+                    fontSize: '20px',
+                    fontWeight: '300',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    transition: 'transform 0.15s ease, opacity 0.15s ease',
+                  }}
+                  onMouseDown={e => e.currentTarget.style.transform = 'scale(0.95)'}
+                  onMouseUp={e => e.currentTarget.style.transform = 'scale(1)'}
+                >
+                  +
+                </button>
+
+                {/* Sync Status */}
+                <SyncStatus isSyncing={isSyncing} isOnline={networkOnline} />
+
+                {/* Theme Switcher */}
+                <ThemeSwitcher />
+
+                {/* User Menu */}
+                <button
+                  onClick={handleSignOut}
+                  style={{
+                    padding: '8px 16px',
+                    fontSize: '15px',
+                    fontWeight: '400',
+                    fontFamily: 'var(--ios-font)',
+                    color: 'var(--ios-primary)',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                  }}
+                >
+                  Sign Out
+                </button>
+              </div>
             </div>
           </header>
 
           {/* Main Content */}
-          <main className="main-content" style={{ padding: '24px' }}>
-            <div className="main-grid" style={{
+          <main className="ios-main-content" style={{
+            padding: '16px',
+            maxWidth: '1400px',
+            margin: '0 auto',
+          }}>
+            
+            <div className="ios-main-grid" style={{
               display: 'grid',
               gridTemplateColumns: '1fr 380px',
-              gap: '24px',
-              maxWidth: '1600px',
-              margin: '0 auto'
+              gap: '16px',
             }}>
+              
               {/* Left Column - Schedule */}
-              <div>
-                {/* View Controls */}
-                <div className="view-controls" style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  marginBottom: '16px'
+              <div className="ios-left-column">
+                
+                {/* Date Navigation */}
+                <div className="ios-card" style={{
+                  background: 'var(--ios-card-bg)',
+                  borderRadius: '14px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                  padding: '16px',
+                  marginBottom: '16px',
                 }}>
-                  <div className="view-toggle" style={{ display: 'flex', gap: '4px' }}>
-                    {['day', 'week'].map(mode => (
-                      <button
-                        key={mode}
-                        onClick={() => setViewMode(mode)}
-                        style={{
-                          padding: '8px 16px',
-                          borderRadius: '8px',
-                          border: 'none',
-                          background: viewMode === mode ? 'var(--accent-color, #FF6B6B)' : 'var(--bg-secondary, white)',
-                          color: viewMode === mode ? 'white' : 'var(--text-secondary, #64748b)',
-                          fontSize: '13px',
-                          fontWeight: '500',
-                          cursor: 'pointer',
-                          textTransform: 'capitalize'
-                        }}
-                      >
-                        {mode}
-                      </button>
-                    ))}
-                  </div>
-
-                  <button
-                    onClick={() => setShowModal(true)}
-                    style={{
-                      padding: '10px 20px',
-                      borderRadius: '10px',
-                      border: 'none',
-                      background: 'linear-gradient(135deg, #FF6B6B 0%, #ee5a5a 100%)',
-                      color: 'white',
-                      fontSize: '14px',
-                      fontWeight: '600',
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      boxShadow: '0 4px 12px rgba(255, 107, 107, 0.3)'
-                    }}
-                  >
-                    <span>+</span> Add Block
-                  </button>
-                </div>
-
-                {/* Day/Week View */}
-                {viewMode === 'day' ? (
-                  /* Day View */
-                  <div className="day-view-container" style={{
-                    background: 'var(--bg-secondary, white)',
-                    borderRadius: '16px',
-                    padding: '20px',
-                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
                   }}>
-                    {/* Day Header */}
-                    <div style={{
-                      display: 'flex',
-                      justifyContent: 'space-between',
-                      alignItems: 'center',
-                      marginBottom: '16px'
-                    }}>
-                      <button
-                        onClick={() => {
-                          const prev = new Date(selectedDate);
-                          prev.setDate(prev.getDate() - 1);
-                          setSelectedDate(prev.toISOString().split('T')[0]);
-                        }}
-                        style={{
-                          padding: '8px 12px',
-                          borderRadius: '8px',
-                          border: '1px solid var(--border-color)',
-                          background: 'transparent',
-                          cursor: 'pointer',
-                          color: 'var(--text-primary)'
-                        }}
-                      >
-                        ← Prev
-                      </button>
-                      <div style={{ textAlign: 'center' }}>
-                        <div style={{ fontSize: '14px', color: 'var(--text-secondary)' }}>
-                          {getDayName(selectedDate)}
-                        </div>
-                        <div style={{ fontSize: '24px', fontWeight: '700', color: 'var(--text-primary)' }}>
-                          {formatDateShort(selectedDate)}
-                        </div>
+                    <button
+                      onClick={() => {
+                        const d = new Date(selectedDate);
+                        d.setDate(d.getDate() - (viewMode === 'week' ? 7 : 1));
+                        setSelectedDate(d.toISOString().split('T')[0]);
+                      }}
+                      style={{
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '50%',
+                        border: 'none',
+                        background: 'var(--ios-fill)',
+                        color: 'var(--ios-primary)',
+                        fontSize: '18px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      ‹
+                    </button>
+
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{
+                        fontSize: '20px',
+                        fontWeight: '600',
+                        color: 'var(--ios-label)',
+                      }}>
+                        {viewMode === 'week' ? 
+                          `${formatDateShort(weekDates[0])} - ${formatDateShort(weekDates[6])}` :
+                          new Date(selectedDate).toLocaleDateString('en-US', { 
+                            weekday: 'long', 
+                            month: 'long', 
+                            day: 'numeric' 
+                          })
+                        }
                       </div>
                       <button
-                        onClick={() => {
-                          const next = new Date(selectedDate);
-                          next.setDate(next.getDate() + 1);
-                          setSelectedDate(next.toISOString().split('T')[0]);
-                        }}
+                        onClick={() => setSelectedDate(today)}
                         style={{
-                          padding: '8px 12px',
-                          borderRadius: '8px',
-                          border: '1px solid var(--border-color)',
+                          padding: '4px 12px',
+                          marginTop: '8px',
+                          fontSize: '13px',
+                          fontWeight: '500',
+                          color: 'var(--ios-primary)',
                           background: 'transparent',
+                          border: 'none',
                           cursor: 'pointer',
-                          color: 'var(--text-primary)'
                         }}
                       >
-                        Next →
+                        Today
                       </button>
                     </div>
 
-                    {/* Hour Rows for Day View */}
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                      {hours.map(hour => {
-                        const dayBlocks = getBlocksForHour(blocks, selectedDate, hour);
-                        const isCurrentHour = selectedDate === today && hour === currentHour;
-                        
-                        return (
-                          <div
-                            key={hour}
-                            style={{
-                              display: 'grid',
-                              gridTemplateColumns: '60px 1fr',
-                              gap: '12px',
-                              alignItems: 'start'
-                            }}
-                          >
-                            <div style={{
-                              fontSize: '13px',
-                              fontWeight: isCurrentHour ? '700' : '500',
-                              color: isCurrentHour ? 'var(--accent-color)' : 'var(--text-secondary)',
-                              paddingTop: '8px',
-                              textAlign: 'right'
-                            }}>
-                              {formatHour(hour)}
-                            </div>
-                            <DroppableCell
-                              date={selectedDate}
-                              hour={hour}
-                              isCurrentHour={isCurrentHour}
-                              blocks={dayBlocks}
-                              onClick={() => {
-                                setSelectedHour(hour);
-                                setShowModal(true);
+                    <button
+                      onClick={() => {
+                        const d = new Date(selectedDate);
+                        d.setDate(d.getDate() + (viewMode === 'week' ? 7 : 1));
+                        setSelectedDate(d.toISOString().split('T')[0]);
+                      }}
+                      style={{
+                        width: '40px',
+                        height: '40px',
+                        borderRadius: '50%',
+                        border: 'none',
+                        background: 'var(--ios-fill)',
+                        color: 'var(--ios-primary)',
+                        fontSize: '18px',
+                        cursor: 'pointer',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      ›
+                    </button>
+                  </div>
+                </div>
+
+                {/* Schedule Grid */}
+                <div className="ios-card" style={{
+                  background: 'var(--ios-card-bg)',
+                  borderRadius: '14px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                  overflow: 'hidden',
+                }}>
+                  
+                  {viewMode === 'day' ? (
+                    /* Day View */
+                    <div style={{ padding: '16px' }}>
+                      <div style={{
+                        display: 'flex',
+                        flexDirection: 'column',
+                        gap: '2px',
+                      }}>
+                        {hours.map(hour => {
+                          const cellBlocks = getBlocksForHour(blocks, selectedDate, hour);
+                          const isCurrentHour = selectedDate === today && hour === currentHour;
+
+                          return (
+                            <div
+                              key={hour}
+                              style={{
+                                display: 'flex',
+                                alignItems: 'stretch',
+                                minHeight: '60px',
                               }}
                             >
-                              {dayBlocks.map(block => (
-                                <TimeBlock
-                                  key={block.id}
-                                  block={block}
-                                  isActive={block.id === activeBlockId}
-                                  onEdit={() => setEditingBlock(block)}
-                                  onDelete={() => setConfirmDialog({ isOpen: true, block })}
-                                  onStartTimer={() => setActiveBlockId(block.id)}
-                                  isCompact={false}
-                                />
-                              ))}
-                            </DroppableCell>
-                          </div>
-                        );
-                      })}
-                    </div>
-                  </div>
-                ) : (
-                  /* Week View */
-                  <div className="week-grid-container" style={{
-                    background: 'var(--bg-secondary, white)',
-                    borderRadius: '16px',
-                    padding: '20px',
-                    boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
-                  }}>
-                    {/* Day Headers */}
-                    <div className="week-grid" style={{
-                      display: 'grid',
-                      gridTemplateColumns: '60px repeat(7, 1fr)',
-                      gap: '8px'
-                    }}>
-                      <div /> {/* Empty corner */}
-                      {weekDates.map((date, i) => {
-                        const isToday = date === today;
-                        return (
-                          <div
-                            key={date}
-                            className="day-header"
-                            onClick={() => {
-                              setSelectedDate(date);
-                              setViewMode('day');
-                            }}
-                            style={{
-                              textAlign: 'center',
-                              padding: '8px',
-                              borderRadius: '8px',
-                              background: isToday ? 'var(--accent-color, #FF6B6B)' : 'transparent',
-                              cursor: 'pointer',
-                              transition: 'background 0.2s'
-                            }}
-                          >
-                            <div className="day-name" style={{
-                              fontSize: '11px',
-                              color: isToday ? 'white' : 'var(--text-secondary, #64748b)',
-                              fontWeight: '500'
-                            }}>
-                              {getDayName(date)}
-                            </div>
-                            <div className="day-number" style={{
-                              fontSize: '16px',
-                              fontWeight: '600',
-                              color: isToday ? 'white' : 'var(--text-primary, #1a1a2e)'
-                            }}>
-                              {formatDateShort(date)}
-                            </div>
-                          </div>
-                        );
-                      })}
-
-                      {/* Hour Rows */}
-                      {hours.map(hour => (
-                        <React.Fragment key={hour}>
-                          <div className="time-label" style={{
-                            fontSize: '11px',
-                            color: 'var(--text-secondary, #64748b)',
-                            paddingRight: '8px',
-                            textAlign: 'right',
-                            paddingTop: '4px'
-                          }}>
-                            {formatHour(hour)}
-                          </div>
-                          {weekDates.map(date => {
-                            const cellBlocks = getBlocksForHour(blocks, date, hour);
-                            const isCurrentHour = date === today && hour === currentHour;
-                            
-                            return (
-                              <DroppableCell
-                                key={`${date}-${hour}`}
-                                date={date}
-                                hour={hour}
-                                isCurrentHour={isCurrentHour}
-                                blocks={cellBlocks}
+                              <div className="ios-time-label" style={{
+                                width: '60px',
+                                paddingRight: '12px',
+                                paddingTop: '4px',
+                                fontSize: '13px',
+                                fontWeight: '500',
+                                color: isCurrentHour ? 'var(--ios-primary)' : 'var(--ios-label-secondary)',
+                                textAlign: 'right',
+                              }}>
+                                {formatHour(hour)}
+                              </div>
+                              <div
+                                style={{
+                                  flex: 1,
+                                  position: 'relative',
+                                  borderTop: '1px solid var(--ios-separator)',
+                                  background: isCurrentHour ? 'rgba(0, 122, 255, 0.04)' : 'transparent',
+                                  minHeight: '60px',
+                                  cursor: 'pointer',
+                                }}
                                 onClick={() => {
-                                  setSelectedDate(date);
                                   setSelectedHour(hour);
                                   setShowModal(true);
                                 }}
@@ -801,40 +843,152 @@ function App() {
                                     onEdit={() => setEditingBlock(block)}
                                     onDelete={() => setConfirmDialog({ isOpen: true, block })}
                                     onStartTimer={() => setActiveBlockId(block.id)}
-                                    isCompact={true}
+                                    isCompact={false}
+                                    iosStyle={true}
                                   />
                                 ))}
-                              </DroppableCell>
-                            );
-                          })}
-                        </React.Fragment>
-                      ))}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
                     </div>
-                  </div>
-                )}
+                  ) : (
+                    /* Week View */
+                    <div style={{ padding: '16px', overflowX: 'auto' }}>
+                      <div className="ios-week-grid" style={{
+                        display: 'grid',
+                        gridTemplateColumns: '54px repeat(7, 1fr)',
+                        gap: '6px',
+                      }}>
+                        {/* Header */}
+                        <div /> {/* Empty corner */}
+                        {weekDates.map((date, i) => {
+                          const isToday = date === today;
+                          return (
+                            <div
+                              key={date}
+                              onClick={() => {
+                                setSelectedDate(date);
+                                setViewMode('day');
+                              }}
+                              style={{
+                                textAlign: 'center',
+                                padding: '10px 4px',
+                                borderRadius: '12px',
+                                background: isToday ? 'var(--ios-primary)' : 'transparent',
+                                cursor: 'pointer',
+                                transition: 'all 0.2s ease',
+                              }}
+                            >
+                              <div className="ios-day-name" style={{
+                                fontSize: '11px',
+                                fontWeight: '500',
+                                color: isToday ? 'rgba(255,255,255,0.8)' : 'var(--ios-label-secondary)',
+                                marginBottom: '4px',
+                                textTransform: 'uppercase',
+                                letterSpacing: '0.5px',
+                              }}>
+                                {getDayName(date)}
+                              </div>
+                              <div className="ios-day-number" style={{
+                                fontSize: '17px',
+                                fontWeight: '600',
+                                color: isToday ? '#fff' : 'var(--ios-label)',
+                              }}>
+                                {formatDateShort(date)}
+                              </div>
+                            </div>
+                          );
+                        })}
+
+                        {/* Hour Rows */}
+                        {hours.map(hour => (
+                          <React.Fragment key={hour}>
+                            <div className="ios-time-label" style={{
+                              fontSize: '11px',
+                              fontWeight: '500',
+                              color: 'var(--ios-label-secondary)',
+                              paddingRight: '8px',
+                              textAlign: 'right',
+                              paddingTop: '4px',
+                            }}>
+                              {formatHour(hour)}
+                            </div>
+                            {weekDates.map(date => {
+                              const cellBlocks = getBlocksForHour(blocks, date, hour);
+                              const isCurrentHour = date === today && hour === currentHour;
+                              
+                              return (
+                                <DroppableCell
+                                  key={`${date}-${hour}`}
+                                  date={date}
+                                  hour={hour}
+                                  isCurrentHour={isCurrentHour}
+                                  blocks={cellBlocks}
+                                  onClick={() => {
+                                    setSelectedDate(date);
+                                    setSelectedHour(hour);
+                                    setShowModal(true);
+                                  }}
+                                  iosStyle={true}
+                                >
+                                  {cellBlocks.map(block => (
+                                    <TimeBlock
+                                      key={block.id}
+                                      block={block}
+                                      isActive={block.id === activeBlockId}
+                                      onEdit={() => setEditingBlock(block)}
+                                      onDelete={() => setConfirmDialog({ isOpen: true, block })}
+                                      onStartTimer={() => setActiveBlockId(block.id)}
+                                      isCompact={true}
+                                      iosStyle={true}
+                                    />
+                                  ))}
+                                </DroppableCell>
+                              );
+                            })}
+                          </React.Fragment>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </div>
 
               {/* Right Column - Timer & Widgets */}
-              <div className="right-column" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div className="ios-right-column" style={{ 
+                display: 'flex', 
+                flexDirection: 'column', 
+                gap: '16px' 
+              }}>
+                
                 {/* AI Assistant */}
                 {showAIPanel && (
-                  <AIAssistant
-                    blocks={blocks}
-                    stats={stats}
-                    preferences={preferences}
-                    onSuggestionApply={(suggestion) => {
-                      // Handle AI suggestion
-                      toast.info(`Suggestion: ${suggestion}`);
-                    }}
-                  />
+                  <div className="ios-card" style={{
+                    background: 'var(--ios-card-bg)',
+                    borderRadius: '14px',
+                    boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                    overflow: 'hidden',
+                  }}>
+                    <AIAssistant
+                      blocks={blocks}
+                      stats={stats}
+                      preferences={preferences}
+                      onSuggestionApply={(suggestion) => {
+                        toast.info(`Suggestion: ${suggestion}`);
+                      }}
+                      iosStyle={true}
+                    />
+                  </div>
                 )}
 
                 {/* Pomodoro Timer */}
-                <div className="timer-container" style={{
-                  background: 'var(--bg-secondary, white)',
-                  borderRadius: '16px',
+                <div className="ios-timer-card ios-card" style={{
+                  background: 'var(--ios-card-bg)',
+                  borderRadius: '14px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
                   padding: '24px',
-                  boxShadow: '0 4px 6px -1px rgba(0, 0, 0, 0.1)'
                 }}>
                   <PomodoroTimer
                     ref={timerRef}
@@ -845,33 +999,112 @@ function App() {
                       updateStreak(user.id);
                     }}
                     onSettingsClick={() => setShowTimerSettings(true)}
+                    iosStyle={true}
                   />
                 </div>
 
                 {/* Google Calendar Sync */}
-                <CalendarSync
-                  blocks={blocks}
-                  onImportBlocks={handleImportBlocks}
-                  onUpdateBlock={handleUpdateBlock}
-                  toast={toast}
-                />
+                <div className="ios-card" style={{
+                  background: 'var(--ios-card-bg)',
+                  borderRadius: '14px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                  overflow: 'hidden',
+                }}>
+                  <CalendarSync
+                    blocks={blocks}
+                    onImportBlocks={handleImportBlocks}
+                    onUpdateBlock={handleUpdateBlock}
+                    toast={toast}
+                    iosStyle={true}
+                  />
+                </div>
 
                 {/* Goals Panel */}
-                <GoalsPanel
-                  blocks={blocks}
-                  stats={stats}
-                  preferences={preferences}
-                />
+                <div className="ios-card" style={{
+                  background: 'var(--ios-card-bg)',
+                  borderRadius: '14px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                  overflow: 'hidden',
+                }}>
+                  <GoalsPanel
+                    blocks={blocks}
+                    stats={stats}
+                    preferences={preferences}
+                    iosStyle={true}
+                  />
+                </div>
 
                 {/* Quick Stats */}
-                <AnalyticsDashboard
-                  blocks={blocks}
-                  stats={stats}
-                  compact
-                />
+                <div className="ios-card" style={{
+                  background: 'var(--ios-card-bg)',
+                  borderRadius: '14px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                  overflow: 'hidden',
+                }}>
+                  <AnalyticsDashboard
+                    blocks={blocks}
+                    stats={stats}
+                    compact
+                    iosStyle={true}
+                  />
+                </div>
               </div>
             </div>
           </main>
+
+          {/* iOS Tab Bar */}
+          <nav style={{
+            position: 'fixed',
+            bottom: 0,
+            left: 0,
+            right: 0,
+            zIndex: 100,
+            background: 'rgba(255, 255, 255, 0.72)',
+            backdropFilter: 'blur(20px) saturate(180%)',
+            WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+            borderTop: '0.5px solid var(--ios-separator)',
+            padding: '8px 0',
+            paddingBottom: 'calc(8px + var(--safe-area-bottom))',
+          }}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-around',
+              maxWidth: '500px',
+              margin: '0 auto',
+            }}>
+              {[
+                { id: 'schedule', icon: '📅', label: 'Schedule' },
+                { id: 'timer', icon: '⏱️', label: 'Timer' },
+                { id: 'analytics', icon: '📊', label: 'Analytics' },
+                { id: 'ai', icon: '🤖', label: 'AI' },
+              ].map(tab => (
+                <button
+                  key={tab.id}
+                  onClick={() => {
+                    setActiveTab(tab.id);
+                    if (tab.id === 'analytics') setShowEnhancedAnalytics(true);
+                    if (tab.id === 'ai') setShowAIPanel(!showAIPanel);
+                    if (tab.id === 'timer') setShowFocusMode(true);
+                  }}
+                  style={{
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    gap: '4px',
+                    padding: '4px 20px',
+                    background: 'transparent',
+                    border: 'none',
+                    color: activeTab === tab.id ? 'var(--ios-primary)' : 'var(--ios-gray)',
+                    cursor: 'pointer',
+                    transition: 'color 0.15s ease',
+                  }}
+                >
+                  <span style={{ fontSize: '24px' }}>{tab.icon}</span>
+                  <span style={{ fontSize: '10px', fontWeight: '500' }}>{tab.label}</span>
+                </button>
+              ))}
+            </div>
+          </nav>
 
           {/* Modals */}
           {showModal && (
@@ -881,6 +1114,7 @@ function App() {
               onAdd={handleAddBlock}
               onClose={() => setShowModal(false)}
               existingBlocks={blocks}
+              iosStyle={true}
             />
           )}
 
@@ -890,6 +1124,7 @@ function App() {
               block={editingBlock}
               onClose={() => setEditingBlock(null)}
               onSave={(updates) => handleUpdateBlock(editingBlock.id, updates)}
+              iosStyle={true}
             />
           )}
 
@@ -902,24 +1137,25 @@ function App() {
                 db.upsertPreferences(user.id, newPrefs);
                 setPreferences(newPrefs);
               }}
+              iosStyle={true}
             />
           )}
 
-          {/* Enhanced Analytics Modal */}
           <EnhancedAnalytics
             blocks={blocks}
             stats={stats}
             isVisible={showEnhancedAnalytics}
             onClose={() => setShowEnhancedAnalytics(false)}
+            iosStyle={true}
           />
 
-          {/* Dialogs */}
           <ConfirmDialog
             isOpen={confirmDialog.isOpen}
             title="Delete Block"
             message={`Are you sure you want to delete "${confirmDialog.block?.title}"?`}
             onConfirm={() => handleDeleteBlock(confirmDialog.block?.id)}
             onCancel={() => setConfirmDialog({ isOpen: false, block: null })}
+            iosStyle={true}
           />
 
           {showFocusMode && (
@@ -927,6 +1163,7 @@ function App() {
               block={activeBlock}
               onClose={() => setShowFocusMode(false)}
               timerRef={timerRef}
+              iosStyle={true}
             />
           )}
 
@@ -936,19 +1173,19 @@ function App() {
               onClose={() => setShowQuickAdd(false)}
               onAdd={handleAddBlock}
               selectedDate={today}
+              iosStyle={true}
             />
           )}
 
-          {/* Toast Notifications */}
-          <ToastContainer toasts={toast.toasts} onDismiss={toast.dismiss} />
+          <ToastContainer toasts={toast.toasts} onDismiss={toast.dismiss} iosStyle={true} />
 
-          {/* Undo Toast */}
           <UndoToast
             isVisible={undoToast.visible}
             message={undoToast.message}
             onUndo={handleUndoDelete}
             onDismiss={() => setUndoToast({ visible: false, message: '', block: null })}
             timeout={5000}
+            iosStyle={true}
           />
         </div>
       </DragProvider>
@@ -957,6 +1194,3 @@ function App() {
 }
 
 export default App;
-
-
-
