@@ -60,6 +60,39 @@ export const auth = {
     });
   },
 
+  /**
+   * Sign in anonymously - creates a temporary session
+   * User can later link this to a real account
+   */
+  async signInAnonymously() {
+    return await supabase.auth.signInAnonymously();
+  },
+
+  /**
+   * Check if current user is anonymous
+   */
+  isAnonymous(user) {
+    return user?.is_anonymous === true;
+  },
+
+  /**
+   * Link anonymous account to Google OAuth
+   * This converts the anonymous session to a full account
+   */
+  async linkToGoogle() {
+    return await supabase.auth.linkIdentity({
+      provider: 'google',
+      options: {
+        redirectTo: window.location.origin,
+        queryParams: {
+          access_type: 'offline',
+          prompt: 'consent'
+        },
+        scopes: 'https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/calendar.events'
+      }
+    });
+  },
+
   async signOut() {
     return await supabase.auth.signOut();
   },
@@ -191,7 +224,6 @@ const formatError = (error) => {
 };
 
 // Database helpers with improved error handling
-// FIXED: Function signatures now match how they're called from App.jsx
 export const db = {
   async getTimeBlocks(userId) {
     if (!userId) return [];
@@ -227,8 +259,6 @@ export const db = {
     }
   },
 
-  // FIXED: Changed signature from (userId, id, updates) to (id, updates)
-  // userId is retrieved from the current session
   async updateTimeBlock(id, updates) {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -250,8 +280,6 @@ export const db = {
     }
   },
 
-  // FIXED: Changed signature from (userId, id) to (id)
-  // userId is retrieved from the current session
   async deleteTimeBlock(id) {
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -335,7 +363,6 @@ export const db = {
     }
   },
 
-  // Added method that was being called but missing
   async savePomodoroStat(userId, session) {
     if (!userId) return { error: new Error('Not authenticated') };
     try {
@@ -355,17 +382,14 @@ export const db = {
         .eq('user_id', userId)
         .maybeSingle();
 
-      // PGRST116 means no rows found - return defaults
       if (error && error.code !== 'PGRST116') {
         console.error('Error fetching preferences:', formatError(error));
-        // Return defaults on error instead of null
         return DEFAULT_PREFERENCES;
       }
       
       return data || DEFAULT_PREFERENCES;
     } catch (error) {
       console.error('Error fetching preferences:', formatError(error));
-      // Return defaults on network error
       return DEFAULT_PREFERENCES;
     }
   },
@@ -388,6 +412,53 @@ export const db = {
       console.error('Error upserting preferences:', formatError(error));
       return { error };
     }
+  },
+
+  /**
+   * Migrate guest data to authenticated account
+   */
+  async migrateGuestData(userId, guestData) {
+    if (!userId || !guestData) return { error: new Error('Invalid migration data') };
+    
+    try {
+      const { blocks, stats, preferences } = guestData;
+      
+      if (blocks && blocks.length > 0) {
+        const blocksToInsert = blocks.map(block => ({
+          ...block,
+          id: undefined,
+          user_id: userId,
+          created_at: block.created_at || new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }));
+        
+        const { error: blocksError } = await supabase
+          .from('time_blocks')
+          .insert(blocksToInsert);
+        
+        if (blocksError) {
+          console.error('Error migrating blocks:', blocksError);
+        }
+      }
+      
+      if (stats && stats.length > 0) {
+        for (const stat of stats) {
+          await this.updatePomodoroStats(
+            userId, 
+            stat.pomodoros_completed, 
+            Object.keys(stat.categories_breakdown || {})[0] || 'work'
+          );
+        }
+      }
+      
+      if (preferences) {
+        await this.upsertPreferences(userId, preferences);
+      }
+      
+      return { error: null };
+    } catch (error) {
+      console.error('Error migrating guest data:', formatError(error));
+      return { error };
+    }
   }
 };
-

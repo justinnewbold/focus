@@ -3,10 +3,11 @@ import PropTypes from 'prop-types';
 import { auth } from '../supabase';
 
 /**
- * Authentication screen with Google OAuth
+ * Authentication screen with Google OAuth and Guest mode
  */
-const AuthScreen = memo(({ onAuthStart, onAuthError }) => {
+const AuthScreen = memo(({ onAuthStart, onAuthError, onGuestMode }) => {
   const [isLoading, setIsLoading] = useState(false);
+  const [isGuestLoading, setIsGuestLoading] = useState(false);
   const [error, setError] = useState(null);
 
   const handleGoogleSignIn = async () => {
@@ -25,6 +26,30 @@ const AuthScreen = memo(({ onAuthStart, onAuthError }) => {
       if (onAuthError) {
         onAuthError(authError);
       }
+    }
+  };
+
+  const handleGuestMode = async () => {
+    setIsGuestLoading(true);
+    setError(null);
+
+    try {
+      // Use Supabase anonymous auth
+      const { error: authError } = await auth.signInAnonymously();
+      
+      if (authError) {
+        setError(authError.message);
+        if (onAuthError) {
+          onAuthError(authError);
+        }
+      } else if (onGuestMode) {
+        onGuestMode();
+      }
+    } catch (err) {
+      setError('Failed to start guest session');
+      console.error('Guest mode error:', err);
+    } finally {
+      setIsGuestLoading(false);
     }
   };
 
@@ -93,9 +118,10 @@ const AuthScreen = memo(({ onAuthStart, onAuthError }) => {
           </div>
         )}
 
+        {/* Google Sign In Button */}
         <button
           onClick={handleGoogleSignIn}
-          disabled={isLoading}
+          disabled={isLoading || isGuestLoading}
           aria-busy={isLoading}
           aria-label={isLoading ? 'Signing in...' : 'Sign in with Google'}
           style={{
@@ -110,10 +136,10 @@ const AuthScreen = memo(({ onAuthStart, onAuthError }) => {
             color: '#333',
             fontSize: '16px',
             fontWeight: '600',
-            cursor: isLoading ? 'not-allowed' : 'pointer',
-            opacity: isLoading ? 0.7 : 1,
+            cursor: isLoading || isGuestLoading ? 'not-allowed' : 'pointer',
+            opacity: isLoading || isGuestLoading ? 0.7 : 1,
             width: '100%',
-            transition: 'opacity 0.2s ease'
+            transition: 'all 0.2s ease'
           }}
         >
           <svg width="20" height="20" viewBox="0 0 24 24" aria-hidden="true">
@@ -137,6 +163,71 @@ const AuthScreen = memo(({ onAuthStart, onAuthError }) => {
           {isLoading ? 'Signing in...' : 'Continue with Google'}
         </button>
 
+        {/* Divider */}
+        <div
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            gap: '16px',
+            margin: '24px 0'
+          }}
+        >
+          <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.1)' }} />
+          <span style={{ color: 'rgba(255,255,255,0.3)', fontSize: '14px' }}>or</span>
+          <div style={{ flex: 1, height: '1px', background: 'rgba(255,255,255,0.1)' }} />
+        </div>
+
+        {/* Guest Mode Button */}
+        <button
+          onClick={handleGuestMode}
+          disabled={isLoading || isGuestLoading}
+          aria-busy={isGuestLoading}
+          aria-label={isGuestLoading ? 'Starting...' : 'Continue as Guest'}
+          style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '12px',
+            padding: '16px 24px',
+            borderRadius: '12px',
+            border: '1px solid rgba(255,255,255,0.2)',
+            background: 'rgba(255,255,255,0.05)',
+            color: '#fff',
+            fontSize: '16px',
+            fontWeight: '600',
+            cursor: isLoading || isGuestLoading ? 'not-allowed' : 'pointer',
+            opacity: isLoading || isGuestLoading ? 0.7 : 1,
+            width: '100%',
+            transition: 'all 0.2s ease'
+          }}
+        >
+          <span style={{ fontSize: '20px' }}>👤</span>
+          {isGuestLoading ? 'Starting...' : 'Try Without Account'}
+        </button>
+
+        {/* Guest Mode Info */}
+        <div
+          style={{
+            marginTop: '16px',
+            padding: '12px',
+            background: 'rgba(78, 205, 196, 0.1)',
+            borderRadius: '8px',
+            border: '1px solid rgba(78, 205, 196, 0.2)'
+          }}
+        >
+          <p
+            style={{
+              color: 'rgba(255,255,255,0.6)',
+              fontSize: '13px',
+              margin: 0,
+              lineHeight: 1.5
+            }}
+          >
+            ✨ <strong style={{ color: '#4ECDC4' }}>Guest mode:</strong> Use the timer instantly. 
+            Your data saves locally. Create an account anytime to sync across devices.
+          </p>
+        </div>
+
         <p
           style={{
             marginTop: '24px',
@@ -144,7 +235,7 @@ const AuthScreen = memo(({ onAuthStart, onAuthError }) => {
             color: 'rgba(255,255,255,0.3)'
           }}
         >
-          By signing in, you agree to our Terms of Service
+          By continuing, you agree to our Terms of Service
         </p>
       </main>
     </div>
@@ -155,7 +246,8 @@ AuthScreen.displayName = 'AuthScreen';
 
 AuthScreen.propTypes = {
   onAuthStart: PropTypes.func,
-  onAuthError: PropTypes.func
+  onAuthError: PropTypes.func,
+  onGuestMode: PropTypes.func
 };
 
 export default AuthScreen;

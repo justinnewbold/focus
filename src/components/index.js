@@ -1,5 +1,6 @@
 // Main components
 export { default as AuthScreen } from './AuthScreen';
+export { default as GuestBanner } from './GuestBanner';
 export { default as PomodoroTimer } from './PomodoroTimer';
 export { default as TimeBlock } from './TimeBlock';
 export { default as DroppableCell } from './DroppableCell';
