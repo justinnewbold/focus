@@ -31,5 +31,9 @@ export { default as AchievementsPanel } from './AchievementsPanel';
 export { default as TimeEstimatesAnalytics } from './TimeEstimatesAnalytics';
 export { default as RolloverPanel } from './RolloverPanel';
 
+// Focus Sounds & Daily Planning
+export { default as FocusSoundsPanel } from './FocusSoundsPanel';
+export { default as DailyPlanningWizard } from './DailyPlanningWizard';
+
 // Modals
 export { AddBlockModal, EditBlockModal, TimerSettingsModal } from './modals';

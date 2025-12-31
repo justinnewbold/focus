@@ -135,3 +135,11 @@ export {
 export {
   rollover
 } from './rollover';
+
+// Focus sounds
+export {
+  SOUNDS,
+  SOUND_CATEGORIES,
+  SOUND_PRESETS,
+  soundManager
+} from './focusSounds';
