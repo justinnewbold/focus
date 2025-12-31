@@ -582,8 +582,7 @@ function App() {
         <style>{iosGlobalStyles}</style>
         
         <div className="ios-app" style={{
-          minHeight: '100vh',
-          minHeight: '-webkit-fill-available',
+          minHeight: '100dvh', // Use dvh for better mobile viewport handling
           background: 'var(--ios-bg)',
           paddingBottom: 'calc(80px + var(--safe-area-bottom))',
         }}>
