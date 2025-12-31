@@ -1,9 +1,11 @@
 import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { supabase, auth, db, realtimeSync } from './supabase';
+import { guestStorage } from './utils/guestStorage';
 
 // Components
 import {
   AuthScreen,
+  GuestBanner,
   PomodoroTimer,
   TimeBlock,
   DroppableCell,
@@ -58,7 +60,6 @@ import { HOURS_RANGE } from './constants';
 
 // Import iOS styles
 import './styles/ios-native.css';
-
 // iOS Native Global Styles
 const iosGlobalStyles = `
   /* ===== iOS ROOT VARIABLES ===== */
@@ -237,9 +238,11 @@ const iosBlockColors = {
 /**
  * Main Application Component - iOS Native Design
  */
+
 function App() {
   // State
   const [user, setUser] = useState(null);
+  const [isAnonymous, setIsAnonymous] = useState(false);
   const [blocks, setBlocks] = useState([]);
   const [stats, setStats] = useState([]);
   const [preferences, setPreferences] = useState({});
@@ -260,6 +263,7 @@ function App() {
   const [showEnhancedAnalytics, setShowEnhancedAnalytics] = useState(false);
   const [showAIPanel, setShowAIPanel] = useState(true);
   const [activeTab, setActiveTab] = useState('schedule');
+  const [showGuestBanner, setShowGuestBanner] = useState(true);
 
   // Refs
   const timerRef = useRef(null);
@@ -289,13 +293,14 @@ function App() {
     requestNotificationPermission();
   }, []);
 
-  // Initialize auth
+  // Initialize auth - handles both authenticated and anonymous users
   useEffect(() => {
     const initAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         if (session?.user) {
           setUser(session.user);
+          setIsAnonymous(auth.isAnonymous(session.user));
         }
       } catch (error) {
         console.error('Auth initialization error:', error);
@@ -306,9 +311,20 @@ function App() {
 
     initAuth();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user || null);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      const currentUser = session?.user || null;
+      setUser(currentUser);
+      setIsAnonymous(currentUser ? auth.isAnonymous(currentUser) : false);
       setIsLoading(false);
+      
+      // If user just upgraded from anonymous, migrate their data
+      if (_event === 'USER_UPDATED' && currentUser && !auth.isAnonymous(currentUser)) {
+        const guestData = guestStorage.getAllData();
+        if (guestData && guestStorage.hasData()) {
+          await db.migrateGuestData(currentUser.id, guestData);
+          guestStorage.clearAllData();
+        }
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -330,7 +346,7 @@ function App() {
     return unsubscribe;
   }, []);
 
-  // Load data
+  // Load data - from Supabase for authenticated users, localStorage for guests
   const loadData = useCallback(async () => {
     if (!user) return;
     if (isLoadingRef.current) return;
@@ -339,18 +355,30 @@ function App() {
     setIsSyncing(true);
     
     try {
-      const [blocksData, statsData, prefsData] = await Promise.all([
-        db.getTimeBlocks(user.id),
-        db.getPomodoroStats(user.id),
-        db.getPreferences(user.id)
-      ]);
+      if (isAnonymous) {
+        // Load from local storage for anonymous users
+        const blocksData = guestStorage.getBlocks();
+        const statsData = guestStorage.getStats();
+        const prefsData = guestStorage.getPreferences();
+        
+        setBlocks(blocksData || []);
+        setStats(statsData || []);
+        setPreferences(prefsData || {});
+      } else {
+        // Load from Supabase for authenticated users
+        const [blocksData, statsData, prefsData] = await Promise.all([
+          db.getTimeBlocks(user.id),
+          db.getPomodoroStats(user.id),
+          db.getPreferences(user.id)
+        ]);
 
-      setBlocks(blocksData || []);
-      setStats(statsData || []);
-      setPreferences(prefsData || {});
+        setBlocks(blocksData || []);
+        setStats(statsData || []);
+        setPreferences(prefsData || {});
 
-      if (blocksData) {
-        cacheBlocks(blocksData);
+        if (blocksData) {
+          cacheBlocks(blocksData);
+        }
       }
     } catch (error) {
       console.error('Error loading data:', error);
@@ -362,15 +390,15 @@ function App() {
       setIsSyncing(false);
       isLoadingRef.current = false;
     }
-  }, [user]);
+  }, [user, isAnonymous]);
 
   useEffect(() => {
     if (user) loadData();
-  }, [user]);
+  }, [user, isAnonymous]);
 
-  // Real-time subscriptions
+  // Real-time subscriptions (only for authenticated non-anonymous users)
   useEffect(() => {
-    if (!user) return;
+    if (!user || isAnonymous) return;
 
     const handleInsert = (newBlock) => {
       setBlocks(prev => prev.some(b => b.id === newBlock.id) ? prev : [...prev, newBlock]);
@@ -385,131 +413,149 @@ function App() {
     };
 
     realtimeSync.subscribeToBlocks(user.id, handleInsert, handleUpdate, handleDelete);
-    realtimeSync.subscribeToStats(user.id, () => {});
 
-    return () => realtimeSync.unsubscribeAll();
-  }, [user]);
+    return () => {
+      realtimeSync.unsubscribeAll();
+    };
+  }, [user, isAnonymous]);
 
-  // CRUD Operations
+  // Handle add block - works for both guest and authenticated
   const handleAddBlock = useCallback(async (blockData) => {
-    if (!user) return;
-    setIsSyncing(true);
     try {
-      const { data: newBlock, error } = await db.createTimeBlock(user.id, blockData);
-      if (error) {
-        toast.error('Failed to create block');
-        return;
+      if (isAnonymous) {
+        // Save to local storage for guests
+        const newBlock = guestStorage.addBlock(blockData);
+        setBlocks(prev => [...prev, newBlock]);
+        toast.success('Block added!');
+        return newBlock;
+      } else {
+        // Save to Supabase for authenticated users
+        const { data, error } = await db.createTimeBlock(user.id, blockData);
+        if (error) throw error;
+        setBlocks(prev => [...prev, data]);
+        toast.success('Block added!');
+        return data;
       }
-      setBlocks(prev => [...prev, newBlock]);
-      toast.success('Block added!');
-      setShowModal(false);
     } catch (error) {
       console.error('Error adding block:', error);
-      toast.error('Failed to create block');
-    } finally {
-      setIsSyncing(false);
+      toast.error('Failed to add block');
+      return null;
     }
-  }, [user, toast]);
+  }, [user, isAnonymous, toast]);
 
+  // Handle update block
   const handleUpdateBlock = useCallback(async (blockId, updates) => {
-    if (!user) return;
-    setIsSyncing(true);
     try {
-      const { data: updatedBlock, error } = await db.updateTimeBlock(blockId, updates);
-      if (error) {
-        toast.error('Failed to update block');
-        return;
+      if (isAnonymous) {
+        const updated = guestStorage.updateBlock(blockId, updates);
+        if (updated) {
+          setBlocks(prev => prev.map(b => b.id === blockId ? updated : b));
+        }
+        return updated;
+      } else {
+        const { data, error } = await db.updateTimeBlock(blockId, updates);
+        if (error) throw error;
+        if (data) {
+          setBlocks(prev => prev.map(b => b.id === blockId ? data : b));
+        }
+        return data;
       }
-      setBlocks(prev => prev.map(b => b.id === blockId ? updatedBlock : b));
-      toast.success('Block updated!');
-      setEditingBlock(null);
     } catch (error) {
       console.error('Error updating block:', error);
       toast.error('Failed to update block');
-    } finally {
-      setIsSyncing(false);
+      return null;
     }
-  }, [user, toast]);
+  }, [isAnonymous, toast]);
 
+  // Handle delete block
   const handleDeleteBlock = useCallback(async (blockId) => {
-    if (!user) return;
     const blockToDelete = blocks.find(b => b.id === blockId);
-    if (!blockToDelete) return;
-
-    setIsSyncing(true);
+    
     try {
-      const { error } = await db.deleteTimeBlock(blockId);
-      if (error) {
-        toast.error('Failed to delete block');
-        return;
+      if (isAnonymous) {
+        guestStorage.deleteBlock(blockId);
+        setBlocks(prev => prev.filter(b => b.id !== blockId));
+      } else {
+        const { error } = await db.deleteTimeBlock(blockId);
+        if (error) throw error;
+        setBlocks(prev => prev.filter(b => b.id !== blockId));
       }
-      setBlocks(prev => prev.filter(b => b.id !== blockId));
-      deletedBlocksStorage.save(blockToDelete);
-      setUndoToast({ visible: true, message: `"${blockToDelete.title}" deleted`, block: blockToDelete });
+      
+      // Store for undo
+      if (blockToDelete) {
+        deletedBlocksStorage.set(blockToDelete);
+        setUndoToast({
+          visible: true,
+          message: `"${blockToDelete.title}" deleted`,
+          block: blockToDelete
+        });
+      }
+      
       setConfirmDialog({ isOpen: false, block: null });
     } catch (error) {
       console.error('Error deleting block:', error);
       toast.error('Failed to delete block');
-    } finally {
-      setIsSyncing(false);
     }
-  }, [user, blocks, toast]);
+  }, [blocks, isAnonymous, toast]);
 
+  // Handle pomodoro completion
+  const handlePomodoroComplete = useCallback(async (session) => {
+    try {
+      if (isAnonymous) {
+        guestStorage.updateDailyStats(1, session?.category || 'work');
+        setStats(guestStorage.getStats());
+      } else {
+        await db.updatePomodoroStats(user.id, 1, session?.category || 'work');
+        const newStats = await db.getPomodoroStats(user.id);
+        setStats(newStats);
+      }
+      updateStreak();
+    } catch (error) {
+      console.error('Error recording pomodoro:', error);
+    }
+  }, [user, isAnonymous]);
+
+  // Handle undo delete
   const handleUndoDelete = useCallback(async () => {
     const deletedBlock = deletedBlocksStorage.get();
-    if (!deletedBlock || !user) return;
-
+    if (!deletedBlock) return;
+    
     try {
-      const { id, ...blockData } = deletedBlock;
-      const { data: restoredBlock, error } = await db.createTimeBlock(user.id, blockData);
-      if (!error) {
-        setBlocks(prev => [...prev, restoredBlock]);
-        toast.success('Block restored!');
-        deletedBlocksStorage.clear();
+      if (isAnonymous) {
+        const restored = guestStorage.addBlock(deletedBlock);
+        setBlocks(prev => [...prev, restored]);
+      } else {
+        const { data } = await db.createTimeBlock(user.id, deletedBlock);
+        if (data) {
+          setBlocks(prev => [...prev, data]);
+        }
       }
+      deletedBlocksStorage.clear();
+      setUndoToast({ visible: false, message: '', block: null });
+      toast.success('Block restored!');
     } catch (error) {
       console.error('Error restoring block:', error);
+      toast.error('Failed to restore block');
     }
-    setUndoToast({ visible: false, message: '', block: null });
-  }, [user, toast]);
+  }, [user, isAnonymous, toast]);
 
-  const handleImportBlocks = useCallback(async (newBlocks) => {
-    if (!user) return;
-    setIsSyncing(true);
-    try {
-      const created = await Promise.all(
-        newBlocks.map(block => db.createTimeBlock(user.id, block))
-      );
-      const validBlocks = created.filter(r => r.data).map(r => r.data);
-      setBlocks(prev => [...prev, ...validBlocks]);
-      toast.success(`Imported ${validBlocks.length} blocks!`);
-    } catch (error) {
-      console.error('Error importing blocks:', error);
-      toast.error('Failed to import blocks');
-    } finally {
-      setIsSyncing(false);
-    }
-  }, [user, toast]);
-
-  const handleExport = useCallback((format) => {
-    if (format === 'csv') {
-      exportBlocksCSV(blocks);
-    } else if (format === 'json') {
-      exportBlocksJSON(blocks);
-    }
-    setShowExportMenu(false);
-    toast.success(`Exported as ${format.toUpperCase()}`);
-  }, [blocks, toast]);
-
+  // Handle sign out
   const handleSignOut = useCallback(async () => {
     try {
+      realtimeSync.unsubscribeAll();
       await auth.signOut();
       setUser(null);
+      setIsAnonymous(false);
       setBlocks([]);
       setStats([]);
     } catch (error) {
       console.error('Sign out error:', error);
     }
+  }, []);
+
+  // Handle upgrade from guest to full account
+  const handleUpgradeAccount = useCallback(() => {
+    setShowGuestBanner(false);
   }, []);
 
   // Loading state
@@ -541,6 +587,14 @@ function App() {
           background: 'var(--ios-bg)',
           paddingBottom: 'calc(80px + var(--safe-area-bottom))',
         }}>
+          
+          {/* Guest Mode Banner */}
+          {isAnonymous && showGuestBanner && (
+            <GuestBanner 
+              onUpgrade={handleUpgradeAccount}
+              onDismiss={() => setShowGuestBanner(false)}
+            />
+          )}
           
           {/* iOS Navigation Bar */}
           <header style={{
@@ -586,6 +640,15 @@ function App() {
                   }}>
                     Focus
                   </h1>
+                  {isAnonymous && (
+                    <span style={{
+                      fontSize: '11px',
+                      color: 'var(--ios-orange)',
+                      fontWeight: '500',
+                    }}>
+                      Guest Mode
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -667,12 +730,11 @@ function App() {
                     cursor: 'pointer',
                   }}
                 >
-                  Sign Out
+                  {isAnonymous ? 'Exit Guest' : 'Sign Out'}
                 </button>
               </div>
             </div>
           </header>
-
           {/* Main Content */}
           <main className="ios-main-content" style={{
             padding: '16px',
