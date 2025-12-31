@@ -143,3 +143,8 @@ export {
   SOUND_PRESETS,
   soundManager
 } from './focusSounds';
+
+// AI Productivity Coach
+export {
+  aiCoach
+} from './aiCoach';
