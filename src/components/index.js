@@ -35,5 +35,9 @@ export { default as RolloverPanel } from './RolloverPanel';
 export { default as FocusSoundsPanel } from './FocusSoundsPanel';
 export { default as DailyPlanningWizard } from './DailyPlanningWizard';
 
+// AI Productivity Coach
+export { default as AICoachPanel } from './AICoachPanel';
+export { default as AICoachWidget } from './AICoachWidget';
+
 // Modals
 export { AddBlockModal, EditBlockModal, TimerSettingsModal } from './modals';
