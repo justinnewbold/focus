@@ -23,7 +23,8 @@ import {
   AIAssistant,
   EnhancedAnalytics,
   CalendarSync,
-  UndoToast
+  UndoToast,
+  DailyProgressWidget
 } from './components';
 
 // Hooks
@@ -999,6 +1000,20 @@ function App() {
                       updateStreak(user.id);
                     }}
                     onSettingsClick={() => setShowTimerSettings(true)}
+                    iosStyle={true}
+                  />
+                </div>
+
+                {/* Daily Progress Widget */}
+                <div className="ios-card" style={{
+                  background: 'var(--ios-card-bg)',
+                  borderRadius: '14px',
+                  boxShadow: '0 1px 3px rgba(0,0,0,0.04)',
+                  overflow: 'hidden',
+                }}>
+                  <DailyProgressWidget
+                    blocks={blocks}
+                    selectedDate={selectedDate}
                     iosStyle={true}
                   />
                 </div>
