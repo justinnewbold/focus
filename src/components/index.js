@@ -17,6 +17,8 @@ export { default as ThemeSwitcher } from './ThemeSwitcher';
 export { default as GoalsPanel } from './GoalsPanel';
 export { default as UndoToast } from './UndoToast';
 export { default as DailyProgressWidget } from './DailyProgressWidget';
+export { default as KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
+export { default as StreakBadge } from './StreakBadge';
 
 // AI & Calendar components
 export { default as AIAssistant } from './AIAssistant';
