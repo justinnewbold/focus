@@ -118,3 +118,20 @@ export {
   updateStreak,
   getStreakCalendar
 } from './goals';
+
+// Achievements system
+export {
+  ACHIEVEMENTS,
+  TIER_COLORS,
+  achievements
+} from './achievements';
+
+// Time estimates
+export {
+  timeEstimates
+} from './timeEstimates';
+
+// Rollover tasks
+export {
+  rollover
+} from './rollover';
