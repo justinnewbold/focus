@@ -15,6 +15,7 @@ export { default as QuickAdd } from './QuickAdd';
 export { default as ThemeSwitcher } from './ThemeSwitcher';
 export { default as GoalsPanel } from './GoalsPanel';
 export { default as UndoToast } from './UndoToast';
+export { default as DailyProgressWidget } from './DailyProgressWidget';
 
 // AI & Calendar components
 export { default as AIAssistant } from './AIAssistant';
