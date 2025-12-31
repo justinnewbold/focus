@@ -25,5 +25,11 @@ export { default as AIAssistant } from './AIAssistant';
 export { default as EnhancedAnalytics } from './EnhancedAnalytics';
 export { default as CalendarSync } from './CalendarSync';
 
+// Achievement & Time Tracking components
+export { default as AchievementBadge } from './AchievementBadge';
+export { default as AchievementsPanel } from './AchievementsPanel';
+export { default as TimeEstimatesAnalytics } from './TimeEstimatesAnalytics';
+export { default as RolloverPanel } from './RolloverPanel';
+
 // Modals
 export { AddBlockModal, EditBlockModal, TimerSettingsModal } from './modals';
