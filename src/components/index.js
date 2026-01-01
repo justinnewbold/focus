@@ -39,5 +39,10 @@ export { default as DailyPlanningWizard } from './DailyPlanningWizard';
 export { default as AICoachPanel } from './AICoachPanel';
 export { default as AICoachWidget } from './AICoachWidget';
 
+// AI Planning & Smart Scheduling (safely loaded)
+export { default as AIPlanningAssistant } from './AIPlanningAssistant';
+export { default as SmartSchedulePanel } from './SmartSchedulePanel';
+export { default as NaturalLanguageInput } from './NaturalLanguageInput';
+
 // Modals
 export { AddBlockModal, EditBlockModal, TimerSettingsModal } from './modals';
