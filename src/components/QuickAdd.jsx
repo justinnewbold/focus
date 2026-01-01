@@ -3,28 +3,32 @@ import PropTypes from 'prop-types';
 import { getTemplates, blockFromTemplate } from '../utils/templates';
 import { getTags } from '../utils/tags';
 import { CATEGORY_COLORS } from '../constants';
+import BottomSheet from './BottomSheet';
+import { useDevice, triggerHaptic } from '../hooks/useDevice';
 
 /**
- * Quick Add Bar (Cmd+K / Ctrl+K)
- * Natural language input for quickly adding blocks
+ * Quick Add - iOS Native Implementation
+ * Mobile: Bottom sheet with swipe gestures
+ * Desktop: Command palette (maintains keyboard shortcuts)
  */
 const QuickAdd = memo(({ isOpen, onClose, onAdd, selectedDate }) => {
   const [input, setInput] = useState('');
   const [suggestions, setSuggestions] = useState([]);
   const [selectedIndex, setSelectedIndex] = useState(0);
-  const [mode, setMode] = useState('input'); // 'input', 'templates', 'categories'
+  const [showCategories, setShowCategories] = useState(false);
 
   const inputRef = useRef(null);
   const templates = useMemo(() => getTemplates(), []);
-  const tags = useMemo(() => getTags(), []);
+  const { isMobile, isTouch, isIOS } = useDevice();
 
   // Focus input when opened
   useEffect(() => {
     if (isOpen) {
       setInput('');
-      setMode('input');
       setSelectedIndex(0);
-      setTimeout(() => inputRef.current?.focus(), 50);
+      setShowCategories(false);
+      // Delay focus to allow animation
+      setTimeout(() => inputRef.current?.focus(), 100);
     }
   }, [isOpen]);
 
@@ -37,6 +41,17 @@ const QuickAdd = memo(({ isOpen, onClose, onAdd, selectedDate }) => {
 
     const parsed = parseInput(input);
     const newSuggestions = [];
+
+    // Time parsing suggestions - prioritize this
+    if (parsed.time) {
+      newSuggestions.unshift({
+        type: 'create',
+        label: parsed.title || 'New block',
+        sublabel: `at ${parsed.time}${parsed.duration ? ` • ${parsed.duration}min` : ''}`,
+        data: parsed,
+        icon: '⏰'
+      });
+    }
 
     // Template matches
     templates.forEach(template => {
@@ -51,28 +66,20 @@ const QuickAdd = memo(({ isOpen, onClose, onAdd, selectedDate }) => {
       }
     });
 
-    // Category shortcuts
-    Object.entries(CATEGORY_COLORS).forEach(([cat, colors]) => {
-      if (cat.startsWith(input.toLowerCase())) {
-        newSuggestions.push({
-          type: 'category',
-          label: `New ${cat} block`,
-          sublabel: 'Create a new block',
-          data: { category: cat },
-          icon: '➕',
-          color: colors.bg
-        });
-      }
-    });
-
-    // Time parsing suggestions
-    if (parsed.time) {
-      newSuggestions.unshift({
-        type: 'create',
-        label: parsed.title || 'New block',
-        sublabel: `at ${parsed.time}${parsed.duration ? ` • ${parsed.duration}min` : ''}`,
-        data: parsed,
-        icon: '⏰'
+    // Category shortcuts (when # is typed)
+    if (input.includes('#')) {
+      Object.entries(CATEGORY_COLORS).forEach(([cat, colors]) => {
+        const searchTerm = input.split('#')[1]?.toLowerCase() || '';
+        if (cat.startsWith(searchTerm)) {
+          newSuggestions.push({
+            type: 'category',
+            label: `#${cat}`,
+            sublabel: 'Add category tag',
+            data: { category: cat },
+            icon: '🏷️',
+            color: colors.bg
+          });
+        }
       });
     }
 
@@ -80,9 +87,9 @@ const QuickAdd = memo(({ isOpen, onClose, onAdd, selectedDate }) => {
     setSelectedIndex(0);
   }, [input, templates]);
 
-  // Handle keyboard navigation
+  // Handle keyboard navigation (desktop only)
   useEffect(() => {
-    if (!isOpen) return;
+    if (!isOpen || isMobile) return;
 
     const handleKeyDown = (e) => {
       if (e.key === 'Escape') {
@@ -100,16 +107,12 @@ const QuickAdd = memo(({ isOpen, onClose, onAdd, selectedDate }) => {
         } else if (input.trim()) {
           handleCreateFromInput();
         }
-      } else if (e.key === 'Tab') {
-        e.preventDefault();
-        // Cycle through modes
-        setMode(prev => prev === 'input' ? 'templates' : prev === 'templates' ? 'categories' : 'input');
       }
     };
 
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
-  }, [isOpen, suggestions, selectedIndex, input, onClose]);
+  }, [isOpen, suggestions, selectedIndex, input, onClose, isMobile]);
 
   const parseInput = (text) => {
     const result = { title: text };
@@ -153,6 +156,8 @@ const QuickAdd = memo(({ isOpen, onClose, onAdd, selectedDate }) => {
   };
 
   const handleSelect = (suggestion) => {
+    triggerHaptic('light');
+    
     switch (suggestion.type) {
       case 'template': {
         const block = blockFromTemplate(
@@ -164,15 +169,10 @@ const QuickAdd = memo(({ isOpen, onClose, onAdd, selectedDate }) => {
         break;
       }
       case 'category': {
-        onAdd({
-          title: input.replace(/^\w+\s*/, '').trim() || 'New block',
-          category: suggestion.data.category,
-          date: selectedDate,
-          hour: 9,
-          start_minute: 0,
-          duration_minutes: 60
-        });
-        break;
+        // Insert category into input
+        const newInput = input.replace(/#\w*$/, `#${suggestion.data.category} `);
+        setInput(newInput);
+        return; // Don't close
       }
       case 'create': {
         const data = suggestion.data;
@@ -191,6 +191,7 @@ const QuickAdd = memo(({ isOpen, onClose, onAdd, selectedDate }) => {
   };
 
   const handleCreateFromInput = () => {
+    triggerHaptic('success');
     const parsed = parseInput(input);
     onAdd({
       title: parsed.title || input,
@@ -203,8 +204,215 @@ const QuickAdd = memo(({ isOpen, onClose, onAdd, selectedDate }) => {
     onClose();
   };
 
+  const handleQuickCategory = (category) => {
+    triggerHaptic('light');
+    const parsed = parseInput(input);
+    onAdd({
+      title: parsed.title || 'New block',
+      category: category,
+      date: selectedDate,
+      hour: parsed.hour || 9,
+      start_minute: parsed.start_minute || 0,
+      duration_minutes: parsed.duration || 60
+    });
+    onClose();
+  };
+
   if (!isOpen) return null;
 
+  // Mobile: iOS Bottom Sheet
+  if (isMobile || isTouch) {
+    return (
+      <BottomSheet
+        isOpen={isOpen}
+        onClose={onClose}
+        snapPoints={['70%']}
+        showHandle={true}
+      >
+        {/* Input Area */}
+        <div style={{ padding: '16px 20px' }}>
+          <div
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px',
+              background: 'rgba(255, 255, 255, 0.08)',
+              borderRadius: '12px',
+              padding: '14px 16px'
+            }}
+          >
+            <span style={{ fontSize: '20px' }}>⚡</span>
+            <input
+              ref={inputRef}
+              type="text"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder="Meeting at 3pm #work 30min"
+              enterKeyHint="done"
+              autoComplete="off"
+              autoCorrect="off"
+              style={{
+                flex: 1,
+                background: 'transparent',
+                border: 'none',
+                color: '#fff',
+                fontSize: '17px',
+                outline: 'none',
+                fontFamily: '-apple-system, BlinkMacSystemFont, sans-serif'
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter' && input.trim()) {
+                  handleCreateFromInput();
+                }
+              }}
+            />
+          </div>
+          
+          {/* Helper text */}
+          <p style={{
+            fontSize: '13px',
+            color: 'rgba(255, 255, 255, 0.4)',
+            margin: '8px 0 0 4px'
+          }}>
+            Try: "Review docs at 2pm #work 45min"
+          </p>
+        </div>
+
+        {/* Suggestions */}
+        {suggestions.length > 0 && (
+          <div style={{ padding: '0 8px' }}>
+            {suggestions.map((suggestion, index) => (
+              <button
+                key={index}
+                onClick={() => handleSelect(suggestion)}
+                style={{
+                  width: '100%',
+                  padding: '14px 16px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '12px',
+                  background: 'transparent',
+                  border: 'none',
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  transition: 'background 0.2s',
+                  WebkitTapHighlightColor: 'transparent'
+                }}
+                onTouchStart={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.1)'}
+                onTouchEnd={(e) => e.currentTarget.style.background = 'transparent'}
+              >
+                <span
+                  style={{
+                    fontSize: '20px',
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '10px',
+                    background: suggestion.color ? `${suggestion.color}30` : 'rgba(255,255,255,0.1)',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center'
+                  }}
+                >
+                  {suggestion.icon}
+                </span>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ 
+                    color: '#fff', 
+                    fontSize: '16px', 
+                    fontWeight: '500',
+                    overflow: 'hidden',
+                    textOverflow: 'ellipsis',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    {suggestion.label}
+                  </div>
+                  <div style={{ 
+                    color: 'rgba(255,255,255,0.5)', 
+                    fontSize: '14px',
+                    marginTop: '2px'
+                  }}>
+                    {suggestion.sublabel}
+                  </div>
+                </div>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.3)" strokeWidth="2">
+                  <polyline points="9,18 15,12 9,6" />
+                </svg>
+              </button>
+            ))}
+          </div>
+        )}
+
+        {/* Quick Category Buttons */}
+        <div style={{ padding: '16px 20px' }}>
+          <p style={{
+            fontSize: '13px',
+            color: 'rgba(255, 255, 255, 0.4)',
+            marginBottom: '12px',
+            fontWeight: '600',
+            textTransform: 'uppercase',
+            letterSpacing: '0.5px'
+          }}>
+            Quick Add
+          </p>
+          <div style={{
+            display: 'flex',
+            flexWrap: 'wrap',
+            gap: '8px'
+          }}>
+            {Object.entries(CATEGORY_COLORS).slice(0, 6).map(([cat, colors]) => (
+              <button
+                key={cat}
+                onClick={() => handleQuickCategory(cat)}
+                style={{
+                  padding: '10px 16px',
+                  borderRadius: '20px',
+                  border: 'none',
+                  background: `${colors.bg}30`,
+                  color: colors.bg,
+                  fontSize: '14px',
+                  fontWeight: '500',
+                  cursor: 'pointer',
+                  textTransform: 'capitalize',
+                  WebkitTapHighlightColor: 'transparent',
+                  transition: 'transform 0.1s'
+                }}
+                onTouchStart={(e) => e.currentTarget.style.transform = 'scale(0.95)'}
+                onTouchEnd={(e) => e.currentTarget.style.transform = 'scale(1)'}
+              >
+                {cat}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Create Button */}
+        {input.trim() && (
+          <div style={{ padding: '16px 20px', paddingBottom: '8px' }}>
+            <button
+              onClick={handleCreateFromInput}
+              style={{
+                width: '100%',
+                padding: '16px',
+                borderRadius: '14px',
+                border: 'none',
+                background: 'linear-gradient(135deg, #4ECDC4 0%, #44A08D 100%)',
+                color: '#fff',
+                fontSize: '17px',
+                fontWeight: '600',
+                cursor: 'pointer',
+                WebkitTapHighlightColor: 'transparent'
+              }}
+            >
+              Create Block
+            </button>
+          </div>
+        )}
+      </BottomSheet>
+    );
+  }
+
+  // Desktop: Command Palette (original style with keyboard hints)
   return (
     <div
       style={{
@@ -302,7 +510,7 @@ const QuickAdd = memo(({ isOpen, onClose, onAdd, selectedDate }) => {
           </div>
         )}
 
-        {/* Hint */}
+        {/* Keyboard Hints - Desktop Only */}
         <div
           style={{
             padding: '12px 16px',
