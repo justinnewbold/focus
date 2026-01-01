@@ -148,3 +148,15 @@ export {
 export {
   aiCoach
 } from './aiCoach';
+
+// Natural Language Parser
+export {
+  parseNaturalLanguage,
+  quickParse,
+  getSuggestions
+} from './naturalLanguageParser';
+
+// Smart Scheduler
+export {
+  smartScheduler
+} from './smartScheduler';
