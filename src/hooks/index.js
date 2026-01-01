@@ -7,3 +7,4 @@ export { useUndoStack } from './useUndoStack';
 export { useMobileKeyboard, getKeyboardAwareStyles } from './useMobileKeyboard';
 export { useAsync, useAsyncCallback } from './useAsync';
 export { useDebounce, useDebouncedCallback, useThrottle, useThrottledCallback } from './useDebounce';
+export { useDevice, triggerHaptic } from './useDevice';
