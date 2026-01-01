@@ -20,6 +20,9 @@ export { default as DailyProgressWidget } from './DailyProgressWidget';
 export { default as KeyboardShortcutsHelp } from './KeyboardShortcutsHelp';
 export { default as StreakBadge } from './StreakBadge';
 
+// iOS Native Components
+export { default as BottomSheet } from './BottomSheet';
+
 // AI & Calendar components
 export { default as AIAssistant } from './AIAssistant';
 export { default as EnhancedAnalytics } from './EnhancedAnalytics';
