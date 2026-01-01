@@ -443,6 +443,42 @@ function App() {
     }
   }, [user, isAnonymous, toast]);
 
+
+  // Handle import multiple blocks (for calendar sync)
+  const handleImportBlocks = useCallback(async (newBlocks) => {
+    if (!newBlocks || newBlocks.length === 0) return [];
+    
+    try {
+      const importedBlocks = [];
+      
+      for (const blockData of newBlocks) {
+        if (isAnonymous) {
+          // Save to local storage for guests
+          const newBlock = guestStorage.addBlock(blockData);
+          importedBlocks.push(newBlock);
+        } else {
+          // Save to Supabase for authenticated users
+          const { data, error } = await db.createTimeBlock(user.id, blockData);
+          if (error) {
+            console.error('Error importing block:', error);
+            continue;
+          }
+          if (data) importedBlocks.push(data);
+        }
+      }
+      
+      if (importedBlocks.length > 0) {
+        setBlocks(prev => [...prev, ...importedBlocks]);
+      }
+      
+      return importedBlocks;
+    } catch (error) {
+      console.error('Error importing blocks:', error);
+      toast.error('Failed to import blocks');
+      return [];
+    }
+  }, [user, isAnonymous, toast]);
+
   // Handle update block
   const handleUpdateBlock = useCallback(async (blockId, updates) => {
     try {
