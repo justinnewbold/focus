@@ -1,7 +1,7 @@
 /**
  * Enhanced Theme System for FOCUS app
- * Supports light/dark modes, system auto mode, and custom color schemes
- * Now with iOS-native design integration
+ * Supports 5 light themes and 5 dark themes
+ * Default: Light theme
  */
 
 const THEME_KEY = 'focus_theme';
@@ -11,7 +11,9 @@ const THEME_MODE_KEY = 'focus_theme_mode'; // 'light', 'dark', 'system'
  * Available themes with iOS-compatible colors
  */
 export const THEMES = {
-  // Light Mode - iOS Style
+  // ===== LIGHT THEMES =====
+  
+  // Light - Classic iOS Light
   light: {
     id: 'light',
     name: 'Light',
@@ -66,7 +68,189 @@ export const THEMES = {
     }
   },
 
-  // Dark Mode - iOS Style
+  // Sky - Bright blue skies
+  sky: {
+    id: 'sky',
+    name: 'Sky',
+    emoji: '☁️',
+    description: 'Bright and airy',
+    isDark: false,
+    colors: {
+      'bg-primary': '#E3F2FD',
+      'bg-secondary': '#FFFFFF',
+      'bg-tertiary': '#BBDEFB',
+      'surface': 'rgba(255,255,255,0.85)',
+      'surface-hover': 'rgba(255,255,255,1)',
+      'border-color': 'rgba(33,150,243,0.15)',
+      'text-primary': '#0D47A1',
+      'text-secondary': 'rgba(13,71,161,0.7)',
+      'text-muted': 'rgba(13,71,161,0.4)',
+      'accent-color': '#2196F3',
+      'accent-gradient': 'linear-gradient(135deg, #2196F3 0%, #64B5F6 100%)',
+      'secondary-color': '#03A9F4',
+      'secondary-gradient': 'linear-gradient(135deg, #03A9F4 0%, #4FC3F7 100%)',
+      'success': '#4CAF50',
+      'warning': '#FF9800',
+      'error': '#F44336',
+      'modal-bg': 'rgba(255,255,255,0.97)',
+      'modal-overlay': 'rgba(33,150,243,0.2)',
+      'card-bg': '#FFFFFF',
+      'card-shadow': '0 2px 12px rgba(33,150,243,0.15)',
+      'category-work': '#2196F3',
+      'category-meeting': '#FF9800',
+      'category-personal': '#9C27B0',
+      'category-learning': '#3F51B5',
+      'category-exercise': '#E91E63',
+      'category-break': '#4CAF50',
+      'ios-primary': '#2196F3',
+      'ios-bg': '#E3F2FD',
+      'ios-card-bg': '#FFFFFF',
+      'ios-separator': 'rgba(33,150,243,0.2)',
+      'ios-label': '#0D47A1',
+      'ios-label-secondary': 'rgba(13,71,161,0.7)',
+      'nav-blur': 'rgba(227,242,253,0.75)',
+      'tab-bar-bg': 'rgba(255,255,255,0.9)'
+    }
+  },
+
+  // Peach - Warm and inviting
+  peach: {
+    id: 'peach',
+    name: 'Peach',
+    emoji: '🍑',
+    description: 'Warm and cozy',
+    isDark: false,
+    colors: {
+      'bg-primary': '#FFF3E0',
+      'bg-secondary': '#FFFFFF',
+      'bg-tertiary': '#FFE0B2',
+      'surface': 'rgba(255,255,255,0.85)',
+      'surface-hover': 'rgba(255,255,255,1)',
+      'border-color': 'rgba(255,152,0,0.15)',
+      'text-primary': '#E65100',
+      'text-secondary': 'rgba(230,81,0,0.7)',
+      'text-muted': 'rgba(230,81,0,0.4)',
+      'accent-color': '#FF9800',
+      'accent-gradient': 'linear-gradient(135deg, #FF9800 0%, #FFB74D 100%)',
+      'secondary-color': '#FF6F00',
+      'secondary-gradient': 'linear-gradient(135deg, #FF6F00 0%, #FF8F00 100%)',
+      'success': '#4CAF50',
+      'warning': '#FFC107',
+      'error': '#F44336',
+      'modal-bg': 'rgba(255,255,255,0.97)',
+      'modal-overlay': 'rgba(255,152,0,0.2)',
+      'card-bg': '#FFFFFF',
+      'card-shadow': '0 2px 12px rgba(255,152,0,0.15)',
+      'category-work': '#FF9800',
+      'category-meeting': '#FF5722',
+      'category-personal': '#9C27B0',
+      'category-learning': '#3F51B5',
+      'category-exercise': '#E91E63',
+      'category-break': '#4CAF50',
+      'ios-primary': '#FF9800',
+      'ios-bg': '#FFF3E0',
+      'ios-card-bg': '#FFFFFF',
+      'ios-separator': 'rgba(255,152,0,0.2)',
+      'ios-label': '#E65100',
+      'ios-label-secondary': 'rgba(230,81,0,0.7)',
+      'nav-blur': 'rgba(255,243,224,0.75)',
+      'tab-bar-bg': 'rgba(255,255,255,0.9)'
+    }
+  },
+
+  // Mint - Fresh and cool
+  mint: {
+    id: 'mint',
+    name: 'Mint',
+    emoji: '🌿',
+    description: 'Fresh and calming',
+    isDark: false,
+    colors: {
+      'bg-primary': '#E8F5E9',
+      'bg-secondary': '#FFFFFF',
+      'bg-tertiary': '#C8E6C9',
+      'surface': 'rgba(255,255,255,0.85)',
+      'surface-hover': 'rgba(255,255,255,1)',
+      'border-color': 'rgba(76,175,80,0.15)',
+      'text-primary': '#1B5E20',
+      'text-secondary': 'rgba(27,94,32,0.7)',
+      'text-muted': 'rgba(27,94,32,0.4)',
+      'accent-color': '#4CAF50',
+      'accent-gradient': 'linear-gradient(135deg, #4CAF50 0%, #81C784 100%)',
+      'secondary-color': '#66BB6A',
+      'secondary-gradient': 'linear-gradient(135deg, #66BB6A 0%, #A5D6A7 100%)',
+      'success': '#4CAF50',
+      'warning': '#FF9800',
+      'error': '#F44336',
+      'modal-bg': 'rgba(255,255,255,0.97)',
+      'modal-overlay': 'rgba(76,175,80,0.2)',
+      'card-bg': '#FFFFFF',
+      'card-shadow': '0 2px 12px rgba(76,175,80,0.15)',
+      'category-work': '#4CAF50',
+      'category-meeting': '#FF9800',
+      'category-personal': '#9C27B0',
+      'category-learning': '#3F51B5',
+      'category-exercise': '#E91E63',
+      'category-break': '#8BC34A',
+      'ios-primary': '#4CAF50',
+      'ios-bg': '#E8F5E9',
+      'ios-card-bg': '#FFFFFF',
+      'ios-separator': 'rgba(76,175,80,0.2)',
+      'ios-label': '#1B5E20',
+      'ios-label-secondary': 'rgba(27,94,32,0.7)',
+      'nav-blur': 'rgba(232,245,233,0.75)',
+      'tab-bar-bg': 'rgba(255,255,255,0.9)'
+    }
+  },
+
+  // Lavender - Soft and elegant
+  lavender: {
+    id: 'lavender',
+    name: 'Lavender',
+    emoji: '💜',
+    description: 'Soft and elegant',
+    isDark: false,
+    colors: {
+      'bg-primary': '#F3E5F5',
+      'bg-secondary': '#FFFFFF',
+      'bg-tertiary': '#E1BEE7',
+      'surface': 'rgba(255,255,255,0.85)',
+      'surface-hover': 'rgba(255,255,255,1)',
+      'border-color': 'rgba(156,39,176,0.15)',
+      'text-primary': '#4A148C',
+      'text-secondary': 'rgba(74,20,140,0.7)',
+      'text-muted': 'rgba(74,20,140,0.4)',
+      'accent-color': '#9C27B0',
+      'accent-gradient': 'linear-gradient(135deg, #9C27B0 0%, #BA68C8 100%)',
+      'secondary-color': '#AB47BC',
+      'secondary-gradient': 'linear-gradient(135deg, #AB47BC 0%, #CE93D8 100%)',
+      'success': '#4CAF50',
+      'warning': '#FF9800',
+      'error': '#F44336',
+      'modal-bg': 'rgba(255,255,255,0.97)',
+      'modal-overlay': 'rgba(156,39,176,0.2)',
+      'card-bg': '#FFFFFF',
+      'card-shadow': '0 2px 12px rgba(156,39,176,0.15)',
+      'category-work': '#9C27B0',
+      'category-meeting': '#FF9800',
+      'category-personal': '#E91E63',
+      'category-learning': '#3F51B5',
+      'category-exercise': '#F06292',
+      'category-break': '#4CAF50',
+      'ios-primary': '#9C27B0',
+      'ios-bg': '#F3E5F5',
+      'ios-card-bg': '#FFFFFF',
+      'ios-separator': 'rgba(156,39,176,0.2)',
+      'ios-label': '#4A148C',
+      'ios-label-secondary': 'rgba(74,20,140,0.7)',
+      'nav-blur': 'rgba(243,229,245,0.75)',
+      'tab-bar-bg': 'rgba(255,255,255,0.9)'
+    }
+  },
+
+  // ===== DARK THEMES =====
+
+  // Dark - Classic iOS Dark
   dark: {
     id: 'dark',
     name: 'Dark',
@@ -307,9 +491,9 @@ export const THEMES = {
  */
 export const getThemeMode = () => {
   try {
-    return localStorage.getItem(THEME_MODE_KEY) || 'system';
+    return localStorage.getItem(THEME_MODE_KEY) || 'light'; // Changed default to 'light'
   } catch {
-    return 'system';
+    return 'light'; // Changed default to 'light'
   }
 };
 
@@ -322,9 +506,9 @@ export const getCurrentThemeId = () => {
     if (mode === 'system') {
       return getSystemThemePreference();
     }
-    return localStorage.getItem(THEME_KEY) || 'dark';
+    return localStorage.getItem(THEME_KEY) || 'light'; // Changed default to 'light'
   } catch {
-    return 'dark';
+    return 'light'; // Changed default to 'light'
   }
 };
 
@@ -333,7 +517,7 @@ export const getCurrentThemeId = () => {
  */
 export const getCurrentTheme = () => {
   const themeId = getCurrentThemeId();
-  return THEMES[themeId] || THEMES.dark;
+  return THEMES[themeId] || THEMES.light; // Changed default to light theme
 };
 
 /**
@@ -379,7 +563,7 @@ export const setTheme = (themeId) => {
  * Apply theme to document
  */
 export const applyTheme = (themeId) => {
-  const theme = THEMES[themeId] || THEMES.dark;
+  const theme = THEMES[themeId] || THEMES.light; // Changed default to light theme
   const root = document.documentElement;
 
   // Apply each color as a CSS variable
@@ -414,7 +598,7 @@ export const applyTheme = (themeId) => {
  * Detect system preference
  */
 export const getSystemThemePreference = () => {
-  if (typeof window === 'undefined') return 'dark';
+  if (typeof window === 'undefined') return 'light'; // Changed default to 'light'
   return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
 };
 
@@ -448,7 +632,7 @@ export const initializeTheme = () => {
   if (mode === 'system') {
     themeId = getSystemThemePreference();
   } else {
-    themeId = localStorage.getItem(THEME_KEY) || 'dark';
+    themeId = localStorage.getItem(THEME_KEY) || 'light'; // Changed default to 'light'
   }
   
   applyTheme(themeId);
