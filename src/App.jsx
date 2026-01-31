@@ -42,6 +42,7 @@ import {
   getCurrentHour,
   generateHoursArray,
   getBlocksForHour,
+  buildBlockLookup,
   cacheBlocks,
   getCachedBlocks,
   isOnline,
@@ -287,6 +288,7 @@ function App() {
   const weekDates = useMemo(() => getWeekDates(selectedDate), [selectedDate]);
   const hours = useMemo(() => generateHoursArray(HOURS_RANGE.start, HOURS_RANGE.count), []);
   const activeBlock = useMemo(() => blocks.find(b => b.id === activeBlockId), [blocks, activeBlockId]);
+  const blockLookup = useMemo(() => buildBlockLookup(blocks), [blocks]);
 
   // Request notification permission
   useEffect(() => {
@@ -519,7 +521,7 @@ function App() {
       
       // Store for undo
       if (blockToDelete) {
-        deletedBlocksStorage.set(blockToDelete);
+        deletedBlocksStorage.save(blockToDelete);
         setUndoToast({
           visible: true,
           message: `"${blockToDelete.title}" deleted`,
@@ -553,7 +555,7 @@ function App() {
 
   // Handle undo delete
   const handleUndoDelete = useCallback(async () => {
-    const deletedBlock = deletedBlocksStorage.get();
+    const deletedBlock = deletedBlocksStorage.getLatest();
     if (!deletedBlock) return;
     
     try {
@@ -566,7 +568,7 @@ function App() {
           setBlocks(prev => [...prev, data]);
         }
       }
-      deletedBlocksStorage.clear();
+      deletedBlocksStorage.remove(deletedBlock.id);
       setUndoToast({ visible: false, message: '', block: null });
       toast.success('Block restored!');
     } catch (error) {
@@ -636,7 +638,7 @@ function App() {
             position: 'sticky',
             top: 0,
             zIndex: 100,
-            background: 'rgba(242, 242, 247, 0.72)',
+            background: 'color-mix(in srgb, var(--ios-bg) 72%, transparent)',
             backdropFilter: 'blur(20px) saturate(180%)',
             WebkitBackdropFilter: 'blur(20px) saturate(180%)',
             borderBottom: '0.5px solid var(--ios-separator)',
@@ -896,7 +898,7 @@ function App() {
                         gap: '2px',
                       }}>
                         {hours.map(hour => {
-                          const cellBlocks = getBlocksForHour(blocks, selectedDate, hour);
+                          const cellBlocks = blockLookup.get(`${selectedDate}|${hour}`) || [];
                           const isCurrentHour = selectedDate === today && hour === currentHour;
 
                           return (
@@ -1014,7 +1016,7 @@ function App() {
                               {formatHour(hour)}
                             </div>
                             {weekDates.map(date => {
-                              const cellBlocks = getBlocksForHour(blocks, date, hour);
+                              const cellBlocks = blockLookup.get(`${date}|${hour}`) || [];
                               const isCurrentHour = date === today && hour === currentHour;
                               
                               return (
@@ -1091,11 +1093,7 @@ function App() {
                   <PomodoroTimer
                     ref={timerRef}
                     activeBlock={activeBlock}
-                    onComplete={(session) => {
-                      db.savePomodoroStat(user.id, session);
-                      toast.success('Pomodoro completed! 🎉');
-                      updateStreak(user.id);
-                    }}
+                    onComplete={handlePomodoroComplete}
                     onSettingsClick={() => setShowTimerSettings(true)}
                     iosStyle={true}
                   />
@@ -1171,7 +1169,7 @@ function App() {
             left: 0,
             right: 0,
             zIndex: 100,
-            background: 'rgba(255, 255, 255, 0.72)',
+            background: 'color-mix(in srgb, var(--ios-bg-secondary) 72%, transparent)',
             backdropFilter: 'blur(20px) saturate(180%)',
             WebkitBackdropFilter: 'blur(20px) saturate(180%)',
             borderTop: '0.5px solid var(--ios-separator)',

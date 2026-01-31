@@ -16,6 +16,7 @@ export {
 // Block utilities
 export {
   getBlocksForHour,
+  buildBlockLookup,
   getOccupiedMinutes,
   getAvailableStartTimes,
   hasTimeConflict,
