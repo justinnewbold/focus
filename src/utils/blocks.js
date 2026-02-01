@@ -16,6 +16,30 @@ export const getBlocksForHour = (blocks, date, hour) => {
 };
 
 /**
+ * Build a lookup map for O(1) access to blocks by date+hour.
+ * Avoids repeated .filter() calls on every cell render in week view.
+ * @param {Array} blocks - Array of block objects
+ * @returns {Map<string, Array>} Map keyed by "date|hour" with sorted block arrays
+ */
+export const buildBlockLookup = (blocks) => {
+  const map = new Map();
+  for (const block of blocks) {
+    const key = `${block.date}|${block.hour}`;
+    let arr = map.get(key);
+    if (!arr) {
+      arr = [];
+      map.set(key, arr);
+    }
+    arr.push(block);
+  }
+  // Sort each bucket by start_minute
+  for (const arr of map.values()) {
+    arr.sort((a, b) => (a.start_minute || 0) - (b.start_minute || 0));
+  }
+  return map;
+};
+
+/**
  * Get set of occupied minutes in an hour
  * @param {Array} blocks - Array of block objects
  * @param {string} date - ISO date string
