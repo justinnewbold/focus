@@ -23,7 +23,7 @@ class SmartSchedulingService {
     // Analyze by hour
     blocks.forEach(block => {
       if (!block.completed || !block.start_time) return;
-      const hour = parseInt(block.start_time.split(':')[0]);
+      const hour = parseInt(block.start_time.split(':')[0], 10);
       // duration_minutes is the block duration, timer_duration is pomodoro timer (both in minutes)
       const duration = block.duration_minutes || block.timer_duration || 25;
 
@@ -44,14 +44,14 @@ class SmartSchedulingService {
 
     // Find peak hours
     const hourlyAvg = Object.entries(patterns.hourlyProductivity)
-      .map(([hour, data]) => ({ hour: parseInt(hour), avg: data.total / data.count }))
+      .map(([hour, data]) => ({ hour: parseInt(hour, 10), avg: data.total / data.count }))
       .sort((a, b) => b.avg - a.avg);
     patterns.peakHours = hourlyAvg.slice(0, 3).map(h => h.hour);
 
     // Find best days
     const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
     const daylyAvg = Object.entries(patterns.dayOfWeekProductivity)
-      .map(([day, data]) => ({ day: dayNames[parseInt(day)], avg: data.total / data.count }))
+      .map(([day, data]) => ({ day: dayNames[parseInt(day, 10)], avg: data.total / data.count }))
       .sort((a, b) => b.avg - a.avg);
     patterns.bestDays = daylyAvg.slice(0, 2).map(d => d.day);
 
@@ -204,7 +204,7 @@ Respond with JSON only: {"suggestedTime": "HH:MM", "reason": "brief explanation"
 
     const peakHourBlocks = todayBlocks.filter(b => {
       if (!b.start_time) return false;
-      const hour = parseInt(b.start_time.split(':')[0]);
+      const hour = parseInt(b.start_time.split(':')[0], 10);
       return patterns.peakHours.includes(hour);
     });
 
@@ -229,9 +229,14 @@ Respond with JSON only: {"suggestedTime": "HH:MM", "reason": "brief explanation"
     // Break reminder
     const consecutiveBlocks = todayBlocks.filter((b, i, arr) => {
       if (i === 0) return false;
-      const prevEnd = arr[i-1].start_time;
-      return b.start_time && prevEnd && 
-        Math.abs(parseInt(b.start_time) - parseInt(prevEnd)) <= 1;
+      const prevBlock = arr[i - 1];
+      if (!b.start_time || !prevBlock.start_time) return false;
+      const [prevHour, prevMin] = prevBlock.start_time.split(':').map(Number);
+      const prevDuration = prevBlock.duration_minutes || prevBlock.timer_duration || 25;
+      const prevEndMinutes = prevHour * 60 + prevMin + prevDuration;
+      const [curHour, curMin] = b.start_time.split(':').map(Number);
+      const curStartMinutes = curHour * 60 + curMin;
+      return curStartMinutes - prevEndMinutes <= 5;
     });
 
     if (consecutiveBlocks.length >= 3) {

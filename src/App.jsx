@@ -282,6 +282,18 @@ function App() {
     initializeTheme();
   }, []);
 
+  // Service worker update notification
+  useEffect(() => {
+    const handleSwUpdate = (event) => {
+      toast.addToast('New version available!', 'info', 0, {
+        label: 'Update',
+        onClick: event.detail.applyUpdate
+      });
+    };
+    window.addEventListener('swUpdateAvailable', handleSwUpdate);
+    return () => window.removeEventListener('swUpdateAvailable', handleSwUpdate);
+  }, [toast]);
+
   // Derived state
   const today = getToday();
   const currentHour = getCurrentHour();
@@ -346,7 +358,7 @@ function App() {
       }
     );
     return unsubscribe;
-  }, []);
+  }, [loadData, toast]);
 
   // Load data - from Supabase for authenticated users, localStorage for guests
   const loadData = useCallback(async () => {

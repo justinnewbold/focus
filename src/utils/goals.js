@@ -142,7 +142,7 @@ export const calculateGoalProgress = (goal, blocks, stats, dateRange) => {
     }
 
     case GoalType.POMODOROS: {
-      current = stats.filter(s => {
+      current = (stats || []).filter(s => {
         const statDate = new Date(s.date);
         return statDate >= startDate && statDate <= endDate;
       }).reduce((sum, s) => sum + (s.sessions_completed || 0), 0);
