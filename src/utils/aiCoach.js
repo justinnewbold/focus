@@ -337,7 +337,7 @@ Categories: work, meeting, break, personal, learning, exercise`;
   return {
     suggestions: stats.peakHours.slice(0, 3).map((hour, i) => ({
       hour,
-      category: i === 0 ? 'work' : i === 1 ? 'work' : 'learning',
+      category: i === 0 ? 'work' : i === 1 ? 'learning' : 'personal',
       duration: stats.avgDuration,
       reason: i === 0 ? 'Your most productive hour' : `High productivity time`
     })),

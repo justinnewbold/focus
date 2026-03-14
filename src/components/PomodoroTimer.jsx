@@ -179,7 +179,7 @@ const PomodoroTimer = memo(forwardRef(({ onComplete, currentTask, preferences, o
     resetTimer
   }), [toggleTimer, resetTimer]);
 
-  const progress = 1 - timeLeft / durations[mode];
+  const progress = Math.max(0, Math.min(1, 1 - timeLeft / (durations[mode] || 1)));
   const circumference = 2 * Math.PI * 90;
   const strokeDashoffset = circumference * (1 - progress);
 

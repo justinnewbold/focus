@@ -78,7 +78,7 @@ export const saveGoals = (goals) => {
 export const createGoal = (goal) => {
   const goals = getGoals();
   const newGoal = {
-    id: Date.now() + Math.random(),
+    id: `goal_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
     ...goal,
     enabled: true,
     created_at: new Date().toISOString()
@@ -161,7 +161,7 @@ export const calculateGoalProgress = (goal, blocks, stats, dateRange) => {
   return {
     current,
     target: goal.target,
-    percentage: Math.min(100, Math.round((current / goal.target) * 100)),
+    percentage: goal.target ? Math.min(100, Math.round((current / goal.target) * 100)) : 0,
     completed: current >= goal.target
   };
 };

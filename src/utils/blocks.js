@@ -127,7 +127,7 @@ export const validateBlockData = (blockData) => {
     errors.push('Invalid hour');
   }
 
-  if (blockData.start_minute < 0 || blockData.start_minute > 55) {
+  if (blockData.start_minute != null && (blockData.start_minute < 0 || blockData.start_minute > 55)) {
     errors.push('Invalid start minute');
   }
 
