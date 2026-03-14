@@ -237,7 +237,7 @@ function parseInsightsResponse(text, blocks, stats) {
       const parsed = JSON.parse(jsonMatch[0]);
       return {
         greeting: parsed.greeting || getTimeBasedGreeting(),
-        focusScore: Math.min(100, Math.max(0, parsed.focusScore || calculateFocusScore(blocks, stats))),
+        focusScore: Math.min(100, Math.max(0, parsed.focusScore ?? calculateFocusScore(blocks, stats))),
         todayInsight: parsed.todayInsight || 'Ready to have a productive day!',
         suggestion: parsed.suggestion || 'Start with your most important task.',
         encouragement: parsed.encouragement || 'You\'ve got this! 💪'

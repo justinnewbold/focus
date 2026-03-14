@@ -116,6 +116,7 @@ export {
   calculateGoalProgress,
   getGoalDateRange,
   getStreaks,
+  saveStreaks,
   updateStreak,
   getStreakCalendar
 } from './goals';

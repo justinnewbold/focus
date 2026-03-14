@@ -13,10 +13,14 @@ if ('serviceWorker' in navigator) {
         const newWorker = registration.installing;
         newWorker.addEventListener('statechange', () => {
           if (newWorker.state === 'installed' && navigator.serviceWorker.controller) {
-            if (confirm('New version available! Reload to update?')) {
-              newWorker.postMessage({ type: 'SKIP_WAITING' });
-              window.location.reload();
-            }
+            window.dispatchEvent(new CustomEvent('swUpdateAvailable', {
+              detail: {
+                applyUpdate: () => {
+                  newWorker.postMessage({ type: 'SKIP_WAITING' });
+                  window.location.reload();
+                }
+              }
+            }));
           }
         });
       });

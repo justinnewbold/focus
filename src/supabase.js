@@ -424,30 +424,53 @@ export const db = {
       const { blocks, stats, preferences } = guestData;
       
       if (blocks && blocks.length > 0) {
-        const blocksToInsert = blocks.map(block => ({
-          ...block,
-          id: undefined,
-          user_id: userId,
-          created_at: block.created_at || new Date().toISOString(),
-          updated_at: new Date().toISOString()
-        }));
-        
-        const { error: blocksError } = await supabase
-          .from('time_blocks')
-          .insert(blocksToInsert);
-        
-        if (blocksError) {
-          console.error('Error migrating blocks:', blocksError);
+        const blocksToInsert = blocks
+          .filter(block => block.title && block.date && block.hour != null)
+          .map(block => ({
+            user_id: userId,
+            title: (block.title || '').trim().substring(0, 100),
+            category: block.category || 'work',
+            date: block.date,
+            hour: Math.max(0, Math.min(23, Number(block.hour) || 0)),
+            start_minute: Math.max(0, Math.min(55, Number(block.start_minute) || 0)),
+            duration_minutes: Math.max(5, Math.min(480, Number(block.duration_minutes) || 25)),
+            timer_duration: block.timer_duration || null,
+            notes: block.notes || null,
+            completed: block.completed || false,
+            color: block.color || null,
+            rollover_enabled: block.rollover_enabled || false,
+            created_at: block.created_at || new Date().toISOString(),
+            updated_at: new Date().toISOString()
+          }));
+
+        if (blocksToInsert.length > 0) {
+          const { error: blocksError } = await supabase
+            .from('time_blocks')
+            .insert(blocksToInsert);
+
+          if (blocksError) {
+            console.error('Error migrating blocks:', blocksError);
+          }
         }
       }
       
       if (stats && stats.length > 0) {
-        for (const stat of stats) {
-          await this.updatePomodoroStats(
-            userId, 
-            stat.pomodoros_completed, 
-            Object.keys(stat.categories_breakdown || {})[0] || 'work'
-          );
+        const statsToInsert = stats.map(stat => ({
+          user_id: userId,
+          date: stat.date,
+          pomodoros_completed: stat.pomodoros_completed || 0,
+          focus_minutes: stat.focus_minutes || 0,
+          categories_breakdown: stat.categories_breakdown || {},
+          created_at: stat.created_at || new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }));
+
+        const { error: statsError } = await supabase
+          .from('pomodoro_stats')
+          .upsert(statsToInsert, { onConflict: 'user_id,date' });
+
+        if (statsError) {
+          console.error('Error migrating stats:', statsError);
         }
       }
       

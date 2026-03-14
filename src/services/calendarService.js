@@ -355,7 +355,7 @@ export function isCalendarOAuthRedirect() {
 export function clearCalendarOAuthRedirect() {
   const url = new URL(window.location.href);
   url.searchParams.delete('gcal');
-  window.history.replaceState({}, '', url.pathname + url.search);
+  window.history.replaceState({}, '', url.pathname + url.search + url.hash);
 }
 
 /**

@@ -23,6 +23,12 @@ const PomodoroTimer = memo(forwardRef(({ onComplete, currentTask, preferences, o
 
   const { playSound, startAlarm, stopAlarm } = useSound();
   const intervalRef = useRef(null);
+  const timeLeftRef = useRef(timeLeft);
+
+  // Keep ref in sync so toggleTimer always reads the latest value
+  useEffect(() => {
+    timeLeftRef.current = timeLeft;
+  }, [timeLeft]);
 
   // Sync timer when page becomes visible (e.g., returning from another tab)
   const handlePageVisible = useCallback(() => {
@@ -112,7 +118,7 @@ const PomodoroTimer = memo(forwardRef(({ onComplete, currentTask, preferences, o
         } else {
           setTimeLeft(remaining);
         }
-      }, 100);
+      }, 1000);
     }
     return () => {
       if (intervalRef.current) clearInterval(intervalRef.current);
@@ -126,14 +132,14 @@ const PomodoroTimer = memo(forwardRef(({ onComplete, currentTask, preferences, o
       setEndTime(null);
       timerStorage.clear();
     } else {
-      const newEndTime = Date.now() + timeLeft * 1000;
+      const newEndTime = Date.now() + timeLeftRef.current * 1000;
       setEndTime(newEndTime);
       setIsRunning(true);
       playSound('start');
-      timerStorage.save({ isRunning: true, endTime: newEndTime, mode, timeLeft });
+      timerStorage.save({ isRunning: true, endTime: newEndTime, mode, timeLeft: timeLeftRef.current });
     }
     onToggle?.(!isRunning);
-  }, [isAlarming, isRunning, timeLeft, mode, playSound, onToggle]);
+  }, [isAlarming, isRunning, mode, playSound, onToggle]);
 
   const acknowledgeAlarm = useCallback(() => {
     stopAlarm();
@@ -179,7 +185,7 @@ const PomodoroTimer = memo(forwardRef(({ onComplete, currentTask, preferences, o
     resetTimer
   }), [toggleTimer, resetTimer]);
 
-  const progress = 1 - timeLeft / durations[mode];
+  const progress = Math.max(0, Math.min(1, 1 - timeLeft / (durations[mode] || 1)));
   const circumference = 2 * Math.PI * 90;
   const strokeDashoffset = circumference * (1 - progress);
 

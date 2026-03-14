@@ -25,7 +25,7 @@ export const useUndoStack = ({ maxHistory = 50 } = {}) => {
     setUndoStack(prev => {
       const newStack = [...prev, {
         ...operation,
-        id: Date.now() + Math.random(),
+        id: `${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         timestamp: Date.now()
       }];
       // Limit stack size

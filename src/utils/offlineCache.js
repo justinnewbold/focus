@@ -72,7 +72,7 @@ export const queuePendingOperation = (operation) => {
     const pending = getPendingOperations();
     pending.push({
       ...operation,
-      id: Date.now() + Math.random(),
+      id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
       timestamp: Date.now()
     });
     localStorage.setItem(PENDING_SYNC_KEY, JSON.stringify(pending));
