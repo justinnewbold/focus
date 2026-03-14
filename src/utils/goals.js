@@ -128,7 +128,7 @@ export const calculateGoalProgress = (goal, blocks, stats, dateRange) => {
       const relevantBlocks = goal.category
         ? filteredBlocks.filter(b => b.category === goal.category && b.completed)
         : filteredBlocks.filter(b => b.completed);
-      current = relevantBlocks.reduce((sum, b) => sum + (b.duration_minutes || 60), 0) / 60;
+      current = relevantBlocks.reduce((sum, b) => sum + (b.duration_minutes || b.timer_duration || 25), 0) / 60;
       break;
     }
 
@@ -153,7 +153,7 @@ export const calculateGoalProgress = (goal, blocks, stats, dateRange) => {
       const categoryBlocks = filteredBlocks.filter(
         b => b.category === goal.category && b.completed
       );
-      current = categoryBlocks.reduce((sum, b) => sum + (b.duration_minutes || 60), 0) / 60;
+      current = categoryBlocks.reduce((sum, b) => sum + (b.duration_minutes || b.timer_duration || 25), 0) / 60;
       break;
     }
   }

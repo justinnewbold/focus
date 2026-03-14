@@ -51,7 +51,9 @@ import {
   exportBlocksJSON,
   withRetry,
   initializeTheme,
-  updateStreak
+  updateStreak,
+  getStreaks,
+  saveStreaks
 } from './utils';
 import { timerStorage, deletedBlocksStorage } from './utils/storage';
 import { requestNotificationPermission } from './utils/notifications';
@@ -335,8 +337,12 @@ function App() {
       if (_event === 'USER_UPDATED' && currentUser && !auth.isAnonymous(currentUser)) {
         const guestData = guestStorage.getAllData();
         if (guestData && guestStorage.hasData()) {
-          await db.migrateGuestData(currentUser.id, guestData);
-          guestStorage.clearAllData();
+          const { error: migrationError } = await db.migrateGuestData(currentUser.id, guestData);
+          if (!migrationError) {
+            guestStorage.clearAllData();
+          } else {
+            console.error('Migration failed, preserving local data:', migrationError);
+          }
         }
       }
     });
@@ -390,6 +396,12 @@ function App() {
         setStats(statsData || []);
         setPreferences(prefsData || {});
 
+        // Hydrate local streak storage from server so authenticated users
+        // don't lose their streak on refresh
+        if (prefsData?.streak_data) {
+          saveStreaks(prefsData.streak_data);
+        }
+
         if (blocksData) {
           cacheBlocks(blocksData);
         }
@@ -409,6 +421,15 @@ function App() {
   useEffect(() => {
     if (user) loadData();
   }, [user, isAnonymous]);
+
+  // Keep offline cache in sync with live blocks state for authenticated users.
+  // This ensures real-time subscription updates (insert/update/delete) are
+  // reflected in the cache so going offline shows current data.
+  useEffect(() => {
+    if (!isAnonymous && user && blocks.length > 0) {
+      cacheBlocks(blocks);
+    }
+  }, [blocks, isAnonymous, user]);
 
   // Real-time subscriptions (only for authenticated non-anonymous users)
   useEffect(() => {
@@ -550,16 +571,42 @@ function App() {
 
   // Handle pomodoro completion
   const handlePomodoroComplete = useCallback(async (session) => {
+    const category = session?.category || 'work';
+    const today = new Date().toISOString().split('T')[0];
     try {
       if (isAnonymous) {
-        guestStorage.updateDailyStats(1, session?.category || 'work');
+        guestStorage.updateDailyStats(1, category);
         setStats(guestStorage.getStats());
       } else {
-        await db.updatePomodoroStats(user.id, 1, session?.category || 'work');
-        const newStats = await db.getPomodoroStats(user.id);
-        setStats(newStats);
+        await db.updatePomodoroStats(user.id, 1, category);
+        // Update local stats in-place instead of re-fetching all 30 days
+        setStats(prev => {
+          const idx = prev.findIndex(s => s.date === today);
+          if (idx !== -1) {
+            const existing = prev[idx];
+            const breakdown = { ...(existing.categories_breakdown || {}) };
+            breakdown[category] = (breakdown[category] || 0) + 1;
+            const updated = {
+              ...existing,
+              pomodoros_completed: existing.pomodoros_completed + 1,
+              focus_minutes: (existing.focus_minutes || 0) + 25,
+              categories_breakdown: breakdown
+            };
+            return [...prev.slice(0, idx), updated, ...prev.slice(idx + 1)];
+          }
+          return [...prev, {
+            date: today,
+            pomodoros_completed: 1,
+            focus_minutes: 25,
+            categories_breakdown: { [category]: 1 }
+          }];
+        });
       }
       updateStreak();
+      // Persist streak for authenticated users so it survives page refresh
+      if (!isAnonymous && user) {
+        db.upsertPreferences(user.id, { streak_data: getStreaks() });
+      }
     } catch (error) {
       console.error('Error recording pomodoro:', error);
     }
