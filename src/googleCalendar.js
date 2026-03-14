@@ -175,7 +175,7 @@ export const importGoogleEvents = async (calendarId, startDate, endDate) => {
   try {
     const events = await getGoogleEvents(
       calendarId,
-      new Date(startDate).toISOString(),
+      new Date(startDate + 'T00:00:00').toISOString(),
       new Date(endDate + 'T23:59:59').toISOString()
     );
     return events.map(googleEventToTimeBlock).filter(Boolean);

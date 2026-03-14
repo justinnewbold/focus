@@ -202,8 +202,8 @@ function extractTime(input) {
   // Check explicit times first
   const explicitMatch = input.match(/(?:at\s+)?(\d{1,2})(?::(\d{2}))?\s*(am|pm)?/i);
   if (explicitMatch) {
-    hour = parseInt(explicitMatch[1]);
-    minute = explicitMatch[2] ? parseInt(explicitMatch[2]) : 0;
+    hour = parseInt(explicitMatch[1], 10);
+    minute = explicitMatch[2] ? parseInt(explicitMatch[2], 10) : 0;
     const meridiem = explicitMatch[3]?.toLowerCase();
     
     if (meridiem === 'pm' && hour < 12) hour += 12;
@@ -224,7 +224,7 @@ function extractTime(input) {
   if (hour === null) {
     const relativeMatch = input.match(/in\s+(\d+)\s*(hour|hr|minute|min)s?/i);
     if (relativeMatch) {
-      const amount = parseInt(relativeMatch[1]);
+      const amount = parseInt(relativeMatch[1], 10);
       const unit = relativeMatch[2].toLowerCase();
       
       if (unit.startsWith('hour') || unit === 'hr') {
@@ -352,7 +352,8 @@ function cleanTitle(input) {
     .replace(/\s+/g, ' ')
     .trim();
 
-  // Capitalize first letter
+  // Capitalize first letter, fall back to original input if everything was stripped
+  if (!title) return input.trim();
   return title.charAt(0).toUpperCase() + title.slice(1);
 }
 

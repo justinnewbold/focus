@@ -442,12 +442,22 @@ export const db = {
       }
       
       if (stats && stats.length > 0) {
-        for (const stat of stats) {
-          await this.updatePomodoroStats(
-            userId, 
-            stat.pomodoros_completed, 
-            Object.keys(stat.categories_breakdown || {})[0] || 'work'
-          );
+        const statsToInsert = stats.map(stat => ({
+          user_id: userId,
+          date: stat.date,
+          pomodoros_completed: stat.pomodoros_completed || 0,
+          focus_minutes: stat.focus_minutes || 0,
+          categories_breakdown: stat.categories_breakdown || {},
+          created_at: stat.created_at || new Date().toISOString(),
+          updated_at: new Date().toISOString()
+        }));
+
+        const { error: statsError } = await supabase
+          .from('pomodoro_stats')
+          .upsert(statsToInsert, { onConflict: 'user_id,date' });
+
+        if (statsError) {
+          console.error('Error migrating stats:', statsError);
         }
       }
       
